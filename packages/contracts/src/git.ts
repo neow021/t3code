@@ -109,6 +109,7 @@ export const VcsCommitGraphCommit = Schema.Struct({
   shortSha: TrimmedNonEmptyStringSchema,
   parents: Schema.Array(TrimmedNonEmptyStringSchema),
   subject: Schema.String,
+  body: Schema.String,
   authorName: Schema.String,
   authorEmail: Schema.String,
   committedAt: TrimmedNonEmptyStringSchema,

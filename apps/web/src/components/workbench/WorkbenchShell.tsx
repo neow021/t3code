@@ -1,8 +1,14 @@
 import type { PaneDescriptor } from "~/workbench/model";
+import { useState } from "react";
 import { paneIdsInLayout, scopeKey } from "~/workbench/model";
 import { defaultPaneRegistry } from "~/workbench/defaultPaneRegistry";
 import type { PaneRegistry } from "~/workbench/paneRegistry";
-import { useWorkbenchStore, workbenchNavigation } from "~/workbench/store";
+import {
+  clearWorkbenchQuarantine,
+  hasWorkbenchQuarantine,
+  useWorkbenchStore,
+  workbenchNavigation,
+} from "~/workbench/store";
 
 import { CompactPane, PaneTree } from "./PaneTree";
 import { PaneLauncher } from "./PaneLauncher";
@@ -18,6 +24,7 @@ export function WorkbenchShell(props: {
   const panes = useWorkbenchStore((state) => state.panes);
   const dispatch = useWorkbenchStore((state) => state.dispatch);
   const registry = props.registry ?? defaultPaneRegistry;
+  const [quarantineVisible, setQuarantineVisible] = useState(hasWorkbenchQuarantine);
 
   if (activeScope === null) {
     return (
@@ -54,6 +61,24 @@ export function WorkbenchShell(props: {
         onClose={(windowId) => dispatch({ kind: "close-window", windowId })}
         onCreate={() => workbenchNavigation.createWindow(activeScope)}
       />
+      {quarantineVisible ? (
+        <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
+          <span className="min-w-0 flex-1">
+            An invalid or newer Workbench layout was quarantined. A safe empty layout is active.
+          </span>
+          <button
+            type="button"
+            className="rounded border border-amber-500/30 px-2 py-1 font-medium hover:bg-amber-500/10"
+            onClick={() => {
+              useWorkbenchStore.getState().reset();
+              clearWorkbenchQuarantine();
+              setQuarantineVisible(false);
+            }}
+          >
+            Reset saved layout
+          </button>
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 p-1.5">
         {activeWindow?.layout === null || activeWindow === null || shared === null ? (
           <PaneLauncher scope={activeScope} />

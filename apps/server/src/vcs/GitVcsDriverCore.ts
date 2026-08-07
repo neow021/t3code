@@ -2887,7 +2887,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
         "--decorate=full",
         `--skip=${cursor}`,
         `-n${fetchCount}`,
-        "--format=%H%x1f%h%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%D%x1f%s%x1e",
+        "--format=%H%x1f%h%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%D%x1f%s%x1f%B%x1e",
       ],
       {
         timeoutMs: 30_000,

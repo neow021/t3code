@@ -9,6 +9,7 @@ function commit(sha: string, parents: ReadonlyArray<string>): VcsCommitGraphComm
     shortSha: sha,
     parents,
     subject: sha,
+    body: sha,
     authorName: "Neo",
     authorEmail: "neo@example.com",
     committedAt: "2026-08-06T12:00:00-07:00",

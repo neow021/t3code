@@ -67,6 +67,7 @@ describe("VcsListCommitGraphResult", () => {
           shortSha: "aaaaaaa",
           parents: ["bbbbbbbb"],
           subject: "feat: graph",
+          body: "feat: graph\n\nDetailed body.",
           authorName: "Neo",
           authorEmail: "neo@example.com",
           committedAt: "2026-08-06T12:00:00-07:00",

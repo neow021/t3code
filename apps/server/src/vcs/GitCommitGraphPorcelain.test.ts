@@ -14,6 +14,7 @@ describe("GitCommitGraphPorcelain", () => {
         "2026-08-06T12:00:00-07:00",
         "HEAD -> refs/heads/main, refs/remotes/origin/main, tag: refs/tags/v1.0.0",
         "ship graph",
+        "ship graph\n\nDetailed body.",
       ].join("\x1f"),
       "\x1e\n",
     ].join("");
@@ -27,6 +28,7 @@ describe("GitCommitGraphPorcelain", () => {
         authorEmail: "neo@example.com",
         committedAt: "2026-08-06T12:00:00-07:00",
         subject: "ship graph",
+        body: "ship graph\n\nDetailed body.",
         refs: [
           { name: "HEAD", kind: "head", current: true },
           { name: "main", kind: "branch", current: true },

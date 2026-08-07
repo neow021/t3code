@@ -76,3 +76,15 @@ export const workbenchNavigation = createWorkbenchNavigation({
     dispatch: (command) => useWorkbenchStore.getState().dispatch(command),
   },
 });
+
+export function clearWorkbenchQuarantine(): void {
+  if (typeof window === "undefined") return;
+  resolveStorage(window.localStorage).removeItem(WORKBENCH_QUARANTINE_STORAGE_KEY);
+}
+
+export function hasWorkbenchQuarantine(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    resolveStorage(window.localStorage).getItem(WORKBENCH_QUARANTINE_STORAGE_KEY) !== null
+  );
+}

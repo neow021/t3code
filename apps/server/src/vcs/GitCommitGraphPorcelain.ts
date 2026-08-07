@@ -62,8 +62,17 @@ export function parseGitCommitGraphLog(stdout: string): VcsCommitGraphCommit[] {
     if (!record) continue;
     const fields = record.split(FIELD_SEPARATOR);
     if (fields.length < 8) continue;
-    const [sha, shortSha, parents, authorName, authorEmail, committedAt, decorations, subject] =
-      fields;
+    const [
+      sha,
+      shortSha,
+      parents,
+      authorName,
+      authorEmail,
+      committedAt,
+      decorations,
+      subject,
+      body,
+    ] = fields;
     if (!sha || !shortSha || !committedAt) continue;
     commits.push({
       sha,
@@ -74,6 +83,7 @@ export function parseGitCommitGraphLog(stdout: string): VcsCommitGraphCommit[] {
       committedAt,
       refs: parseGitCommitGraphRefs(decorations ?? ""),
       subject: subject ?? "",
+      body: body ?? subject ?? "",
     });
   }
   return commits;
