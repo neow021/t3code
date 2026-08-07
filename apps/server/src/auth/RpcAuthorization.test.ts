@@ -30,6 +30,10 @@ describe("RPC authorization scopes", () => {
     );
   });
 
+  it("treats physical worktree inventory as a read-only operation", () => {
+    expect(requiredScopeForRpcMethod(WS_METHODS.vcsListWorktrees)).toBe(AuthOrchestrationReadScope);
+  });
+
   it("allows relay status reads without granting relay installation access", () => {
     expect(requiredScopeForRpcMethod(WS_METHODS.cloudGetRelayClientStatus)).toBe(
       AuthRelayReadScope,

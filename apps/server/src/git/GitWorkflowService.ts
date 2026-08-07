@@ -1,6 +1,8 @@
 import * as Context from "effect/Context";
+import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
 
 import {
   GitManagerError,
@@ -13,6 +15,8 @@ import {
   type VcsCreateWorktreeResult,
   type VcsListRefsInput,
   type VcsListRefsResult,
+  type VcsListWorktreesInput,
+  type VcsListWorktreesResult,
   type GitManagerServiceError,
   type GitPreparePullRequestThreadInput,
   type GitPreparePullRequestThreadResult,
@@ -62,6 +66,9 @@ export class GitWorkflowService extends Context.Service<
     readonly listRefs: (
       input: VcsListRefsInput,
     ) => Effect.Effect<VcsListRefsResult, GitCommandError>;
+    readonly listWorktrees: (
+      input: VcsListWorktreesInput,
+    ) => Effect.Effect<VcsListWorktreesResult, GitCommandError>;
     readonly createWorktree: (
       input: VcsCreateWorktreeInput,
     ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;
@@ -129,6 +136,22 @@ function nonRepositoryListRefs(): VcsListRefsResult {
     totalCount: 0,
   };
 }
+
+const nonRepositoryWorktreeInventory = Effect.fn(
+  "GitWorkflowService.nonRepositoryWorktreeInventory",
+)(function* (): Effect.fn.Return<VcsListWorktreesResult> {
+  return {
+    isRepo: false,
+    repositoryRoot: null,
+    gitCommonDirectory: null,
+    worktrees: [],
+    freshness: {
+      source: "live-local",
+      observedAt: yield* DateTime.now,
+      expiresAt: Option.none(),
+    },
+  };
+});
 
 export const make = Effect.gen(function* () {
   const registry = yield* VcsDriverRegistry.VcsDriverRegistry;
@@ -293,6 +316,12 @@ export const make = Effect.gen(function* () {
       detectGitRepositoryForCommand("GitWorkflowService.listRefs", input.cwd).pipe(
         Effect.flatMap((isGitRepository) =>
           isGitRepository ? git.listRefs(input) : Effect.succeed(nonRepositoryListRefs()),
+        ),
+      ),
+    listWorktrees: (input) =>
+      detectGitRepositoryForCommand("GitWorkflowService.listWorktrees", input.cwd).pipe(
+        Effect.flatMap((isGitRepository) =>
+          isGitRepository ? git.listWorktrees(input) : nonRepositoryWorktreeInventory(),
         ),
       ),
     createWorktree: (input) =>

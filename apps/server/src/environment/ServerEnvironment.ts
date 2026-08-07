@@ -142,6 +142,7 @@ export const make = Effect.gen(function* () {
     serverVersion: packageJson.version,
     capabilities: {
       repositoryIdentity: true,
+      worktreeInventory: true,
       connectionProbe: true,
       threadSettlement: true,
       threadSnooze: true,

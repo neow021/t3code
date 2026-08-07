@@ -14,9 +14,15 @@ import { getLocalStorageItem } from "../hooks/useLocalStorage";
 import { resolveShortcutCommand, shortcutLabelForCommand } from "../keybindings";
 import { cn, isMacPlatform } from "../lib/utils";
 import { primaryServerKeybindingsAtom } from "../state/server";
-import { useEnvironmentIdentificationMode, useSidebarV2Enabled } from "../hooks/useSettings";
+import {
+  useEnvironmentIdentificationMode,
+  useSidebarV2Enabled,
+  useWorkbenchBetaEnabled,
+} from "../hooks/useSettings";
 import ThreadSidebar from "./Sidebar";
 import ThreadSidebarV2 from "./SidebarV2";
+import { MachineRepoWorktreeSidebar } from "./workbench/MachineRepoWorktreeSidebar";
+import { WorkbenchShell } from "./workbench/WorkbenchShell";
 import { useSidebarStageBackdropVariant } from "./SidebarStageBackdrop";
 import {
   resolveInitialThreadSidebarWidth,
@@ -119,12 +125,14 @@ function SidebarControl() {
 export function AppSidebarLayout({ children }: { children: ReactNode }) {
   const navigate = useNavigate();
   const sidebarV2Enabled = useSidebarV2Enabled();
+  const workbenchBetaEnabled = useWorkbenchBetaEnabled();
   // Settings routes render the settings nav, which lives in the v1 component
   // and is identical for both sidebars — so v1 stays mounted there.
   const pathname = useLocation({ select: (location) => location.pathname });
   const isOnSettings = pathname === "/settings" || pathname.startsWith("/settings/");
   const useSidebarV2 = sidebarV2Enabled && !isOnSettings;
-  const useSidebarV2Theme = useSidebarV2 || isOnSettings;
+  const useWorkbench = workbenchBetaEnabled && !isOnSettings;
+  const useSidebarV2Theme = useSidebarV2 || useWorkbench || isOnSettings;
   const isMacosDesktop = isElectron && isMacPlatform(navigator.platform);
   const [sidebarWidth, setSidebarWidth] = useState(readInitialThreadSidebarWidth);
   // Subscribed rather than read once: the clamp must track live window size,
@@ -200,10 +208,23 @@ export function AppSidebarLayout({ children }: { children: ReactNode }) {
           onResize: setSidebarWidth,
         }}
       >
-        {useSidebarV2 ? <ThreadSidebarV2 /> : <ThreadSidebar />}
+        {useWorkbench ? (
+          <MachineRepoWorktreeSidebar />
+        ) : useSidebarV2 ? (
+          <ThreadSidebarV2 />
+        ) : (
+          <ThreadSidebar />
+        )}
         <SidebarRail />
       </Sidebar>
-      {children}
+      {useWorkbench ? (
+        <>
+          <div className="hidden">{children}</div>
+          <WorkbenchShell />
+        </>
+      ) : (
+        children
+      )}
       <SidebarControl />
     </SidebarProvider>
   );

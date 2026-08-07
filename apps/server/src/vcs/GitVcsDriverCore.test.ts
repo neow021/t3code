@@ -1309,6 +1309,64 @@ it.layer(TestLayer)("GitVcsDriver core integration", (it) => {
   });
 
   describe("worktree operations", () => {
+    it.effect("lists canonical linked, detached, and locked worktrees from any checkout", () =>
+      Effect.gen(function* () {
+        const cwd = yield* makeTmpDir();
+        const { initialBranch } = yield* initRepoWithCommit(cwd);
+        const worktreesRoot = yield* makeTmpDir("git-vcs-driver-inventory-");
+        const fileSystem = yield* FileSystem.FileSystem;
+        const pathService = yield* Path.Path;
+        const linkedPath = pathService.join(worktreesRoot, "linked\nworktree");
+        const detachedPath = pathService.join(worktreesRoot, "detached");
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+
+        yield* git(cwd, ["worktree", "add", "-b", "feature/inventory", linkedPath]);
+        yield* git(cwd, ["worktree", "add", "--detach", detachedPath, "HEAD"]);
+        yield* git(cwd, ["worktree", "lock", "--reason", "maintenance", linkedPath]);
+
+        const inventory = yield* driver.listWorktrees({ cwd: linkedPath });
+        const commonDir = yield* git(cwd, ["rev-parse", "--git-common-dir"]);
+        const expectedCommonDir = yield* fileSystem.realPath(pathService.resolve(cwd, commonDir));
+        const expectedRoot = yield* fileSystem.realPath(cwd);
+        const expectedLinked = yield* fileSystem.realPath(linkedPath);
+        const expectedDetached = yield* fileSystem.realPath(detachedPath);
+
+        assert.equal(inventory.isRepo, true);
+        assert.equal(inventory.repositoryRoot, expectedRoot);
+        assert.equal(inventory.gitCommonDirectory, expectedCommonDir);
+        assert.equal(inventory.freshness.source, "live-local");
+        assert.equal(inventory.worktrees.length, 3);
+
+        const root = inventory.worktrees.find((entry) => entry.path === expectedRoot);
+        assert.equal(root?.branchRef, `refs/heads/${initialBranch}`);
+        assert.equal(root?.detached, false);
+
+        const linked = inventory.worktrees.find((entry) => entry.path === expectedLinked);
+        assert.equal(linked?.branchRef, "refs/heads/feature/inventory");
+        assert.equal(linked?.locked, true);
+        assert.equal(linked?.lockedReason, "maintenance");
+
+        const detached = inventory.worktrees.find((entry) => entry.path === expectedDetached);
+        assert.equal(detached?.branchRef, null);
+        assert.equal(detached?.detached, true);
+      }),
+    );
+
+    it.effect("returns an explicit empty inventory outside a repository", () =>
+      Effect.gen(function* () {
+        const driver = yield* GitVcsDriver.GitVcsDriver;
+        const cwd = yield* makeTmpDir("git-vcs-driver-non-repo-");
+
+        const inventory = yield* driver.listWorktrees({ cwd });
+
+        assert.equal(inventory.isRepo, false);
+        assert.equal(inventory.repositoryRoot, null);
+        assert.equal(inventory.gitCommonDirectory, null);
+        assert.deepStrictEqual(inventory.worktrees, []);
+        assert.equal(inventory.freshness.source, "live-local");
+      }),
+    );
+
     it.effect("preserves newline characters in worktree paths when listing refs", () =>
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();

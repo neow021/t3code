@@ -5,6 +5,7 @@ import {
   type ServerConfig,
   type ThreadId,
   type VcsListRefsResult,
+  type VcsListWorktreesResult,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -32,6 +33,10 @@ export class ConnectionPersistenceError extends Schema.TaggedErrorClass<Connecti
       "save-vcs-refs",
       "remove-vcs-refs",
       "clear-vcs-refs",
+      "load-worktree-inventories",
+      "save-worktree-inventory",
+      "remove-worktree-inventory",
+      "clear-worktree-inventories",
       "clear-environment",
     ]),
     message: Schema.String,
@@ -114,6 +119,23 @@ export class EnvironmentCacheStore extends Context.Service<
      * same refs under different working-directory keys.
      */
     readonly clearVcsRefs: (
+      environmentId: EnvironmentId,
+    ) => Effect.Effect<void, ConnectionPersistenceError>;
+    /** Complete authoritative snapshots, keyed by environment and canonical
+        Git common directory. Optional so older/custom client platforms remain
+        source-compatible until they opt into offline Workbench inventory. */
+    readonly loadWorktreeInventories?: (
+      environmentId: EnvironmentId,
+    ) => Effect.Effect<ReadonlyArray<VcsListWorktreesResult>, ConnectionPersistenceError>;
+    readonly saveWorktreeInventory?: (
+      environmentId: EnvironmentId,
+      inventory: VcsListWorktreesResult,
+    ) => Effect.Effect<void, ConnectionPersistenceError>;
+    readonly removeWorktreeInventory?: (
+      environmentId: EnvironmentId,
+      gitCommonDirectory: string,
+    ) => Effect.Effect<void, ConnectionPersistenceError>;
+    readonly clearWorktreeInventories?: (
       environmentId: EnvironmentId,
     ) => Effect.Effect<void, ConnectionPersistenceError>;
     readonly clear: (

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import {
   useClientSettings,
   useSidebarV2Enabled,
+  useWorkbenchBetaEnabled,
   useUpdateClientSettings,
 } from "../../hooks/useSettings";
 import { Input } from "../ui/input";
@@ -57,6 +58,7 @@ function AutoSettleDaysInput({
 
 export function BetaSettingsPanel() {
   const sidebarV2Enabled = useSidebarV2Enabled();
+  const workbenchBetaEnabled = useWorkbenchBetaEnabled();
   const sidebarAutoSettleAfterDays = useClientSettings(
     (settings) => settings.sidebarAutoSettleAfterDays,
   );
@@ -65,6 +67,19 @@ export function BetaSettingsPanel() {
   return (
     <SettingsPageContainer>
       <SettingsSection title="Beta features">
+        <SettingsRow
+          {...searchableSetting("workbench")}
+          description="Machine → Repo → Worktree navigation with client-local Windows and Panes. Agent, Terminal, Files, Diff, Git Graph, and Browser are peer Pane types. Existing Mobile, T3 Connect, direct, Tailscale, and SSH access remain compatible."
+          control={
+            <Switch
+              checked={workbenchBetaEnabled}
+              onCheckedChange={(checked) =>
+                updateSettings({ workbenchBetaEnabled: Boolean(checked) })
+              }
+              aria-label="Enable the Workbench beta"
+            />
+          }
+        />
         <SettingsRow
           {...searchableSetting("sidebar-v2")}
           description="One flat thread list in creation order. Active work renders as rich cards; settled threads collapse to compact rows. Settling requires an up-to-date server — on older servers threads simply stay active. Switch back any time."

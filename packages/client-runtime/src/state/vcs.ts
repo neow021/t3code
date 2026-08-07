@@ -28,6 +28,7 @@ import {
   vcsRefsCacheStateAtom,
   withVcsRefsPersistenceLock,
 } from "./vcsRefInvalidation.ts";
+import { invalidateCachedWorktreeInventories } from "./worktrees.ts";
 
 const OFFLINE_BRANCH_LIST_LIMIT = 100;
 const VCS_REFS_IDLE_TTL_MS = 30_000;
@@ -267,6 +268,20 @@ export function createVcsEnvironmentAtoms<R, E>(
       environmentId: target.environmentId,
       cwd: target.input.cwd,
     });
+  const invalidateRefsAndWorktrees = (
+    target: { readonly environmentId: EnvironmentId; readonly input: { readonly cwd: string } },
+    registry: AtomRegistry.AtomRegistry,
+  ) =>
+    Effect.all(
+      [
+        invalidateRefs(target, registry),
+        invalidateCachedWorktreeInventories(registry, {
+          environmentId: target.environmentId,
+          cwd: target.input.cwd,
+        }),
+      ],
+      { concurrency: "unbounded", discard: true },
+    );
 
   return {
     listRefs,
@@ -302,14 +317,14 @@ export function createVcsEnvironmentAtoms<R, E>(
       tag: WS_METHODS.vcsCreateWorktree,
       scheduler: vcsCommandScheduler,
       concurrency: vcsCommandConcurrency,
-      onSettled: invalidateRefs,
+      onSettled: invalidateRefsAndWorktrees,
     }),
     removeWorktree: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:vcs:remove-worktree",
       tag: WS_METHODS.vcsRemoveWorktree,
       scheduler: vcsCommandScheduler,
       concurrency: vcsCommandConcurrency,
-      onSettled: invalidateRefs,
+      onSettled: invalidateRefsAndWorktrees,
     }),
     createRef: createEnvironmentRpcCommand(runtime, {
       label: "environment-data:vcs:create-ref",

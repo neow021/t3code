@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vite-plus/test";
+import * as DateTime from "effect/DateTime";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import {
   VcsCreateWorktreeInput,
+  VcsListWorktreesResult,
   GitPreparePullRequestThreadInput,
   GitRunStackedActionResult,
   GitRunStackedActionInput,
@@ -16,6 +19,39 @@ const decodePreparePullRequestThreadInput = Schema.decodeUnknownSync(
 const decodeRunStackedActionInput = Schema.decodeUnknownSync(GitRunStackedActionInput);
 const decodeRunStackedActionResult = Schema.decodeUnknownSync(GitRunStackedActionResult);
 const decodeResolvePullRequestResult = Schema.decodeUnknownSync(GitResolvePullRequestResult);
+const decodeListWorktreesResult = Schema.decodeUnknownSync(VcsListWorktreesResult);
+
+describe("VcsListWorktreesResult", () => {
+  it("decodes complete physical worktree state and freshness", () => {
+    const parsed = decodeListWorktreesResult({
+      isRepo: true,
+      repositoryRoot: "/repo/main",
+      gitCommonDirectory: "/repo/main/.git",
+      worktrees: [
+        {
+          path: "/repo/feature",
+          headSha: "0123456789abcdef",
+          branchRef: null,
+          detached: true,
+          bare: false,
+          locked: true,
+          lockedReason: "maintenance",
+          prunable: false,
+          prunableReason: null,
+        },
+      ],
+      freshness: {
+        source: "live-local",
+        observedAt: DateTime.makeUnsafe("2026-08-06T00:00:00.000Z"),
+        expiresAt: Option.none(),
+      },
+    });
+
+    expect(parsed.worktrees[0]?.detached).toBe(true);
+    expect(parsed.worktrees[0]?.lockedReason).toBe("maintenance");
+    expect(parsed.freshness.source).toBe("live-local");
+  });
+});
 
 describe("VcsCreateWorktreeInput", () => {
   it("accepts omitted newRefName for existing-refName worktrees", () => {

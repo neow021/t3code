@@ -45,7 +45,7 @@ describe("searchSettings", () => {
 
   it("matches normalized title substrings", () => {
     expect(searchSettings("  WORD   WRAP  ", ITEMS).map((item) => item.id)).toEqual(["word-wrap"]);
-    expect(searchSettings("work")).toEqual([]);
+    expect(searchSettings("work").map((item) => item.id)).toEqual(["workbench"]);
   });
 
   it("keeps catalog order for multiple title matches", () => {
@@ -67,6 +67,7 @@ describe("searchSettings", () => {
   it("serves anchor props to panels from the catalog", () => {
     expect(searchableSetting("word-wrap")).toEqual({ id: "word-wrap", title: "Word wrap" });
     expect(searchableSetting("archive")).toEqual({ id: "archive", title: "Archived threads" });
+    expect(searchableSetting("workbench")).toEqual({ id: "workbench", title: "Workbench" });
   });
 
   it("routes appearance settings to their current section", () => {

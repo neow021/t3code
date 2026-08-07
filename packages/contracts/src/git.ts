@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { NonNegativeInt, PositiveInt, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { SourceControlProviderError, SourceControlProviderInfo } from "./sourceControl.ts";
-import { VcsDriverKind } from "./vcs.ts";
+import { VcsDriverKind, VcsFreshness } from "./vcs.ts";
 
 const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
 const GIT_LIST_BRANCHES_MAX_LIMIT = 200;
@@ -83,6 +83,19 @@ export const VcsRef = Schema.Struct({
 });
 export type VcsRef = typeof VcsRef.Type;
 
+export const VcsWorktreeInventoryEntry = Schema.Struct({
+  path: TrimmedNonEmptyStringSchema,
+  headSha: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  branchRef: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  detached: Schema.Boolean,
+  bare: Schema.Boolean,
+  locked: Schema.Boolean,
+  lockedReason: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  prunable: Schema.Boolean,
+  prunableReason: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+});
+export type VcsWorktreeInventoryEntry = typeof VcsWorktreeInventoryEntry.Type;
+
 const VcsWorktree = Schema.Struct({
   path: TrimmedNonEmptyStringSchema,
   refName: TrimmedNonEmptyStringSchema,
@@ -133,6 +146,11 @@ export const VcsListRefsInput = Schema.Struct({
   ),
 });
 export type VcsListRefsInput = typeof VcsListRefsInput.Type;
+
+export const VcsListWorktreesInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+});
+export type VcsListWorktreesInput = typeof VcsListWorktreesInput.Type;
 
 export const VcsCreateWorktreeInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
@@ -261,6 +279,15 @@ export const VcsListRefsResult = Schema.Struct({
   totalCount: NonNegativeInt,
 });
 export type VcsListRefsResult = typeof VcsListRefsResult.Type;
+
+export const VcsListWorktreesResult = Schema.Struct({
+  isRepo: Schema.Boolean,
+  repositoryRoot: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  gitCommonDirectory: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  worktrees: Schema.Array(VcsWorktreeInventoryEntry),
+  freshness: VcsFreshness,
+});
+export type VcsListWorktreesResult = typeof VcsListWorktreesResult.Type;
 
 export const VcsCreateWorktreeResult = Schema.Struct({
   worktree: VcsWorktree,

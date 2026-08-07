@@ -24,6 +24,7 @@ import {
   ServerConfig,
   ThreadId,
   VcsListRefsResult,
+  VcsListWorktreesResult,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -34,12 +35,13 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 
 const DATABASE_NAME = "t3code:connection-runtime";
-const DATABASE_VERSION = 4;
+const DATABASE_VERSION = 5;
 const CATALOG_STORE_NAME = "catalog";
 const SHELL_STORE_NAME = "shell";
 const THREAD_STORE_NAME = "thread";
 const SERVER_CONFIG_STORE_NAME = "server-config";
 const VCS_REFS_STORE_NAME = "vcs-refs";
+const WORKTREE_INVENTORY_STORE_NAME = "worktree-inventories";
 const CATALOG_KEY = "document";
 const SHELL_SNAPSHOT_CACHE_SCHEMA_VERSION = 1;
 
@@ -72,6 +74,13 @@ const StoredVcsRefs = Schema.Struct({
   refs: VcsListRefsResult,
 });
 const StoredVcsRefsJson = Schema.fromJsonString(StoredVcsRefs);
+const StoredWorktreeInventory = Schema.Struct({
+  schemaVersion: Schema.Literal(1),
+  environmentId: EnvironmentId,
+  gitCommonDirectory: Schema.String,
+  inventory: VcsListWorktreesResult,
+});
+const StoredWorktreeInventoryJson = Schema.fromJsonString(StoredWorktreeInventory);
 const ConnectionCatalogDocumentJson = Schema.fromJsonString(ConnectionCatalogDocument);
 const decodeConnectionCatalogDocument = Schema.decodeUnknownEffect(ConnectionCatalogDocumentJson);
 const encodeConnectionCatalogDocument = Schema.encodeEffect(ConnectionCatalogDocumentJson);
@@ -83,6 +92,8 @@ const decodeStoredServerConfig = Schema.decodeUnknownEffect(StoredServerConfigJs
 const encodeStoredServerConfig = Schema.encodeEffect(StoredServerConfigJson);
 const decodeStoredVcsRefs = Schema.decodeUnknownEffect(StoredVcsRefsJson);
 const encodeStoredVcsRefs = Schema.encodeEffect(StoredVcsRefsJson);
+const decodeStoredWorktreeInventory = Schema.decodeUnknownEffect(StoredWorktreeInventoryJson);
+const encodeStoredWorktreeInventory = Schema.encodeEffect(StoredWorktreeInventoryJson);
 
 function catalogError(operation: string, cause: unknown) {
   return new ConnectionTransientError({
@@ -107,6 +118,10 @@ function persistenceError(
     | "save-vcs-refs"
     | "remove-vcs-refs"
     | "clear-vcs-refs"
+    | "load-worktree-inventories"
+    | "save-worktree-inventory"
+    | "remove-worktree-inventory"
+    | "clear-worktree-inventories"
     | "clear-environment",
   cause: unknown,
 ) {
@@ -140,6 +155,9 @@ const openDatabase = Effect.fn("web.connectionStorage.openDatabase")(function* (
       }
       if (!request.result.objectStoreNames.contains(VCS_REFS_STORE_NAME)) {
         request.result.createObjectStore(VCS_REFS_STORE_NAME);
+      }
+      if (!request.result.objectStoreNames.contains(WORKTREE_INVENTORY_STORE_NAME)) {
+        request.result.createObjectStore(WORKTREE_INVENTORY_STORE_NAME);
       }
     });
     request.addEventListener("error", () => {
@@ -226,12 +244,33 @@ function removeDatabaseValuesInRange(database: IDBDatabase, storeName: string, r
   }).pipe(Effect.withSpan("web.connectionStorage.removeDatabaseValuesInRange"));
 }
 
+function readDatabaseValuesInRange(database: IDBDatabase, storeName: string, range: IDBKeyRange) {
+  return Effect.callback<ReadonlyArray<unknown>, ConnectionTransientError>((resume) => {
+    const request = database
+      .transaction(storeName, "readonly")
+      .objectStore(storeName)
+      .getAll(range);
+    request.addEventListener("error", () => {
+      resume(
+        Effect.fail(catalogError("read", request.error ?? "Unknown IndexedDB range read error")),
+      );
+    });
+    request.addEventListener("success", () => {
+      resume(Effect.succeed(request.result));
+    });
+  }).pipe(Effect.withSpan("web.connectionStorage.readDatabaseValuesInRange"));
+}
+
 function threadCacheKey(environmentId: EnvironmentId, threadId: ThreadId) {
   return `${environmentId}:${threadId}`;
 }
 
 function vcsRefsCacheKey(environmentId: EnvironmentId, cwd: string) {
   return `${environmentId}:${cwd}`;
+}
+
+function worktreeInventoryCacheKey(environmentId: EnvironmentId, gitCommonDirectory: string) {
+  return `${environmentId}:${gitCommonDirectory}`;
 }
 
 const decodeCatalog = Effect.fn("web.connectionStorage.decodeCatalog")(function* (raw: string) {
@@ -633,6 +672,70 @@ export const connectionStorageLayer = Layer.effectContext(
           VCS_REFS_STORE_NAME,
           IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
         ).pipe(Effect.mapError((cause) => persistenceError("clear-vcs-refs", cause))),
+      loadWorktreeInventories: (environmentId) =>
+        readDatabaseValuesInRange(
+          database,
+          WORKTREE_INVENTORY_STORE_NAME,
+          IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
+        ).pipe(
+          Effect.flatMap((values) =>
+            Effect.forEach(values, (raw) =>
+              typeof raw === "string"
+                ? decodeStoredWorktreeInventory(raw).pipe(
+                    Effect.mapError((cause) =>
+                      persistenceError("load-worktree-inventories", cause),
+                    ),
+                  )
+                : Effect.fail(
+                    persistenceError("load-worktree-inventories", "Invalid stored value"),
+                  ),
+            ),
+          ),
+          Effect.map((stored) =>
+            stored
+              .filter((entry) => entry.environmentId === environmentId)
+              .map((entry) => entry.inventory),
+          ),
+          Effect.mapError((cause) =>
+            cause._tag === "ConnectionPersistenceError"
+              ? cause
+              : persistenceError("load-worktree-inventories", cause),
+          ),
+        ),
+      saveWorktreeInventory: (environmentId, inventory) =>
+        Effect.gen(function* () {
+          if (!inventory.isRepo || inventory.gitCommonDirectory === null) return;
+          const encoded = yield* encodeStoredWorktreeInventory({
+            schemaVersion: 1,
+            environmentId,
+            gitCommonDirectory: inventory.gitCommonDirectory,
+            inventory,
+          }).pipe(Effect.mapError((cause) => persistenceError("save-worktree-inventory", cause)));
+          yield* writeDatabaseValue(
+            database,
+            WORKTREE_INVENTORY_STORE_NAME,
+            worktreeInventoryCacheKey(environmentId, inventory.gitCommonDirectory),
+            encoded,
+          );
+        }).pipe(
+          Effect.mapError((cause) =>
+            cause._tag === "ConnectionPersistenceError"
+              ? cause
+              : persistenceError("save-worktree-inventory", cause),
+          ),
+        ),
+      removeWorktreeInventory: (environmentId, gitCommonDirectory) =>
+        removeDatabaseValue(
+          database,
+          WORKTREE_INVENTORY_STORE_NAME,
+          worktreeInventoryCacheKey(environmentId, gitCommonDirectory),
+        ).pipe(Effect.mapError((cause) => persistenceError("remove-worktree-inventory", cause))),
+      clearWorktreeInventories: (environmentId) =>
+        removeDatabaseValuesInRange(
+          database,
+          WORKTREE_INVENTORY_STORE_NAME,
+          IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
+        ).pipe(Effect.mapError((cause) => persistenceError("clear-worktree-inventories", cause))),
       removeThread: (environmentId, threadId) =>
         removeDatabaseValue(
           database,
@@ -652,6 +755,11 @@ export const connectionStorageLayer = Layer.effectContext(
             removeDatabaseValuesInRange(
               database,
               VCS_REFS_STORE_NAME,
+              IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
+            ),
+            removeDatabaseValuesInRange(
+              database,
+              WORKTREE_INVENTORY_STORE_NAME,
               IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
             ),
           ],

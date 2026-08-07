@@ -263,6 +263,12 @@ export function useSidebarV2Enabled(): boolean {
   );
 }
 
+export function useWorkbenchBetaEnabled(): boolean {
+  const settingsHydrated = useClientSettingsHydrated();
+  const enabled = useClientSettingsValue().workbenchBetaEnabled;
+  return settingsHydrated && enabled;
+}
+
 /** Read current settings for one environment, merged with client-local preferences. */
 export function useEnvironmentSettings<T = UnifiedSettings>(
   environmentId: EnvironmentId,

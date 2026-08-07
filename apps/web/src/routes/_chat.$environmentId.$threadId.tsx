@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 
-import ChatView from "../components/ChatView";
+import { AgentThreadSurface } from "../components/workbench/AgentThreadSurface";
 import { threadHasStarted } from "../components/ChatView.logic";
 import { finalizePromotedDraftThreadByRef, useComposerDraftStore } from "../composerDraftStore";
 import { resolveThreadRouteRef, resolveThreadRouteRenderState } from "../threadRoutes";
@@ -14,10 +14,15 @@ import {
   useThreadStatus,
 } from "../state/entities";
 import { useEnvironmentQuery } from "../state/query";
+import { useWorkbenchBetaEnabled } from "../hooks/useSettings";
 import { environmentShell } from "../state/shell";
+import { createAgentPaneDescriptor, machineScope } from "../workbench/model";
+import { revealThreadRoute } from "../workbench/routeAdapter";
+import { workbenchNavigation } from "../workbench/store";
 
 function ChatThreadRouteView() {
   const navigate = useNavigate();
+  const workbenchEnabled = useWorkbenchBetaEnabled();
   const threadRef = Route.useParams({
     select: (params) => resolveThreadRouteRef(params),
   });
@@ -74,19 +79,32 @@ function ChatThreadRouteView() {
     finalizePromotedDraftThreadByRef(threadRef);
   }, [draftThread, serverThreadStarted, threadRef]);
 
+  useEffect(() => {
+    if (!workbenchEnabled || !threadRef || renderState === "missing") return;
+    revealThreadRoute(workbenchNavigation, {
+      environmentId: threadRef.environmentId,
+      threadId: threadRef.threadId,
+      title: serverThreadShell?.title ?? "Agent",
+    });
+  }, [renderState, serverThreadShell?.title, threadRef, workbenchEnabled]);
+
   if (!threadRef) {
     return null;
   }
 
+  if (workbenchEnabled) return null;
+
+  const agentPane = createAgentPaneDescriptor({
+    id: `route-agent:${encodeURIComponent(threadRef.environmentId)}:${encodeURIComponent(threadRef.threadId)}`,
+    scope: machineScope(threadRef.environmentId),
+    target: { kind: "thread", threadId: threadRef.threadId },
+    title: serverThreadShell?.title ?? "Agent",
+  });
+
   return (
     <SidebarInset className="h-svh min-h-0 overflow-hidden overscroll-y-none bg-background text-foreground md:h-dvh">
       {renderState === "ready" || (renderState === "loading" && serverThreadShell !== null) ? (
-        <ChatView
-          environmentId={threadRef.environmentId}
-          threadId={threadRef.threadId}
-          routeKind="server"
-          threadSyncPhase={threadSyncPhase}
-        />
+        <AgentThreadSurface pane={agentPane} threadSyncPhase={threadSyncPhase} />
       ) : null}
     </SidebarInset>
   );

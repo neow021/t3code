@@ -111,6 +111,16 @@ describe("ClientSettings sidebar v2", () => {
   });
 });
 
+describe("ClientSettings Workbench beta", () => {
+  it("is client-local and opt-in", () => {
+    expect(decodeClientSettings({}).workbenchBetaEnabled).toBe(false);
+    expect(decodeClientSettings({ workbenchBetaEnabled: true }).workbenchBetaEnabled).toBe(true);
+    expect(decodeClientSettingsPatch({ workbenchBetaEnabled: true }).workbenchBetaEnabled).toBe(
+      true,
+    );
+  });
+});
+
 describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
   it("defaults text generation to Luna at low reasoning effort", () => {
     expect(DEFAULT_SERVER_SETTINGS.textGenerationModelSelection).toEqual({
