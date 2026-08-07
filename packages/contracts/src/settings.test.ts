@@ -112,12 +112,16 @@ describe("ClientSettings sidebar v2", () => {
 });
 
 describe("ClientSettings Workbench beta", () => {
-  it("is client-local and opt-in", () => {
+  it("keeps the value and explicit-choice marker client-local", () => {
     expect(decodeClientSettings({}).workbenchBetaEnabled).toBe(false);
+    expect(decodeClientSettings({}).workbenchBetaConfiguredByUser).toBe(false);
     expect(decodeClientSettings({ workbenchBetaEnabled: true }).workbenchBetaEnabled).toBe(true);
-    expect(decodeClientSettingsPatch({ workbenchBetaEnabled: true }).workbenchBetaEnabled).toBe(
-      true,
-    );
+    const patch = decodeClientSettingsPatch({
+      workbenchBetaEnabled: false,
+      workbenchBetaConfiguredByUser: true,
+    });
+    expect(patch.workbenchBetaEnabled).toBe(false);
+    expect(patch.workbenchBetaConfiguredByUser).toBe(true);
   });
 });
 

@@ -17,7 +17,13 @@ function pathIsWithin(path: string, parent: string): boolean {
   return candidate === root || candidate.startsWith(`${root}/`);
 }
 
-export function PaneLauncher({ scope }: { readonly scope: WorkspaceScope }) {
+export function PaneLauncher({
+  scope,
+  onOpened,
+}: {
+  readonly scope: WorkspaceScope;
+  readonly onOpened?: () => void;
+}) {
   const projects = useProjects();
   const candidates = useMemo(
     () =>
@@ -48,6 +54,7 @@ export function PaneLauncher({ scope }: { readonly scope: WorkspaceScope }) {
       threadId: null,
     });
     useTerminalPaneRuntimeStore.getState().requestLaunch(paneId);
+    onOpened?.();
   };
 
   return (
@@ -91,6 +98,7 @@ export function PaneLauncher({ scope }: { readonly scope: WorkspaceScope }) {
                 projectId: project.id,
                 rootPath: project.workspaceRoot,
               });
+              onOpened?.();
             }}
           >
             <Files className="size-4" /> Files
@@ -117,6 +125,7 @@ export function PaneLauncher({ scope }: { readonly scope: WorkspaceScope }) {
                   canonicalWorktreePath: scope.canonicalWorktreePath,
                 },
               });
+              onOpened?.();
             }}
           >
             <FileDiff className="size-4" /> Changes
@@ -132,6 +141,7 @@ export function PaneLauncher({ scope }: { readonly scope: WorkspaceScope }) {
                 repositoryKey: scope.repositoryKey,
                 canonicalWorktreePath: scope.canonicalWorktreePath,
               });
+              onOpened?.();
             }}
           >
             <GitMerge className="size-4" /> Git Graph

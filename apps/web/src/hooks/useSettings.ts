@@ -26,7 +26,7 @@ import {
 } from "@t3tools/contracts/settings";
 import { safeErrorLogAttributes } from "@t3tools/client-runtime/errors";
 import { APP_STAGE_LABEL } from "~/branding";
-import { resolveSidebarV2Enabled } from "~/branding.logic";
+import { resolveSidebarV2Enabled, resolveWorkbenchEnabled } from "~/branding.logic";
 import { ensureLocalApi } from "~/localApi";
 import * as Struct from "effect/Struct";
 import { primaryServerSettingsAtom, serverEnvironment } from "~/state/server";
@@ -265,8 +265,17 @@ export function useSidebarV2Enabled(): boolean {
 
 export function useWorkbenchBetaEnabled(): boolean {
   const settingsHydrated = useClientSettingsHydrated();
-  const enabled = useClientSettingsValue().workbenchBetaEnabled;
-  return settingsHydrated && enabled;
+  const settings = useClientSettingsValue();
+  return useMemo(
+    () =>
+      resolveWorkbenchEnabled({
+        enabled: settings.workbenchBetaEnabled,
+        configuredByUser: settings.workbenchBetaConfiguredByUser,
+        settingsHydrated,
+        stageLabel: APP_STAGE_LABEL,
+      }),
+    [settings.workbenchBetaConfiguredByUser, settings.workbenchBetaEnabled, settingsHydrated],
+  );
 }
 
 /** Read current settings for one environment, merged with client-local preferences. */

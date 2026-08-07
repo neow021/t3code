@@ -43,6 +43,7 @@ const clientSettings: ClientSettings = {
   sidebarV2ConfiguredByUser: false,
   timestampFormat: "24-hour",
   workbenchBetaEnabled: false,
+  workbenchBetaConfiguredByUser: false,
   wordWrap: true,
 };
 

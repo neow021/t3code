@@ -8,8 +8,11 @@ Graph, and Browser surfaces are peer Panes.
 
 These are release blockers, not follow-up work:
 
-1. The official Mobile app must continue to connect and use Projects, threads, Agent turns, files,
-   diffs, and terminals through its existing UI.
+1. Desktop browser Web, mobile browser Web, and the Desktop app renderer are one responsive
+   Workbench surface. Narrow browser viewports may show one active Pane at a time, but retain the
+   same Window and Pane lifecycle; they must never fall back to the legacy ChatView because of
+   viewport width. The official native Mobile app remains a separate, unchanged UI and must
+   continue to connect and use Projects, threads, Agent turns, files, diffs, and terminals.
 2. T3 Connect must continue to use the existing relay, DPoP/auth, environment identity, and shell
    protocols. Workbench state never becomes relay or server ownership.
 3. Direct/LAN, Tailscale HTTPS, and SSH-launched environments continue to resolve to the same
@@ -18,8 +21,22 @@ These are release blockers, not follow-up work:
    sends `vcs.listCommitGraph` only when `gitCommitGraph === true`.
 5. Existing clients do not need to know Workbench. An older/upstream client can use a new server;
    a new client renders a recoverable unavailable state against an older server.
-6. The Beta flag defaults off. Disabling it returns to the upstream legacy shell without writing v2
-   state backward or dual-writing legacy placement while Workbench is active.
+6. The Beta flag is a release-channel rollout, not a per-origin product fork. Dev and Nightly
+   default to Workbench on every Web origin and viewport; Alpha and Latest default off. An explicit
+   user choice overrides the channel default. Disabling it returns to the upstream legacy shell
+   without writing v2 state backward or dual-writing legacy placement while Workbench is active.
+
+## Responsive Web composition
+
+Window tabs remain horizontally scrollable at every Web viewport. Compact Web adds a second
+horizontal Pane tab strip and renders the selected Pane below it. Create, activate, switch, and
+close actions are touch-safe and do not depend on hover. Add Pane opens the same launcher used by
+an empty Window; Files, Diff, Git Graph, and Terminal remain peer Pane types rather than Sidebar
+destinations.
+
+Composition persistence stays browser-local. Two browsers may arrange their Windows and Panes
+differently, but clients on the same release channel receive the same default shell and the same
+capabilities.
 
 Workbench persists only composition descriptors. Terminal processes, browser tabs, thread data,
 file state, Git data, connections, and authentication remain in their existing runtime stores.

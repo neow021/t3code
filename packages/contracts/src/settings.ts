@@ -194,8 +194,12 @@ export const ClientSettingsSchema = Schema.Struct({
   // there is no way to tell that apart from "left alone", and a channel-derived
   // default could never reach them. Mirrors `updateChannelConfiguredByUser`.
   sidebarV2ConfiguredByUser: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  /** Client-local opt-in for the Machine → Repo → Worktree Workbench shell. */
+  /** Client-local rollout value for the Machine → Repo → Worktree Workbench shell. */
   workbenchBetaEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
+  /** Whether `workbenchBetaEnabled` reflects an explicit Settings → Beta choice. */
+  workbenchBetaConfiguredByUser: Schema.Boolean.pipe(
+    Schema.withDecodingDefault(Effect.succeed(false)),
+  ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
@@ -796,6 +800,7 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarV2Enabled: Schema.optionalKey(Schema.Boolean),
   sidebarV2ConfiguredByUser: Schema.optionalKey(Schema.Boolean),
   workbenchBetaEnabled: Schema.optionalKey(Schema.Boolean),
+  workbenchBetaConfiguredByUser: Schema.optionalKey(Schema.Boolean),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   wordWrap: Schema.optionalKey(Schema.Boolean),
 });

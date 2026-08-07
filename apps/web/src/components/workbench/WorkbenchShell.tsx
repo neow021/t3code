@@ -12,7 +12,9 @@ import {
 
 import { CompactPane, PaneTree } from "./PaneTree";
 import { PaneLauncher } from "./PaneLauncher";
+import { PaneTabs } from "./PaneTabs";
 import { WindowTabs } from "./WindowTabs";
+import { Sheet, SheetPopup, SheetTitle } from "../ui/sheet";
 
 export function WorkbenchShell(props: {
   readonly registry?: PaneRegistry;
@@ -25,6 +27,7 @@ export function WorkbenchShell(props: {
   const dispatch = useWorkbenchStore((state) => state.dispatch);
   const registry = props.registry ?? defaultPaneRegistry;
   const [quarantineVisible, setQuarantineVisible] = useState(hasWorkbenchQuarantine);
+  const [paneLauncherOpen, setPaneLauncherOpen] = useState(false);
 
   if (activeScope === null) {
     return (
@@ -51,6 +54,13 @@ export function WorkbenchShell(props: {
             ? {}
             : { isPaneAvailable: props.isPaneAvailable }),
         };
+  const activePanes =
+    activeWindow?.layout === null || activeWindow === null
+      ? []
+      : paneIdsInLayout(activeWindow.layout).flatMap((paneId) => {
+          const pane = panes[paneId];
+          return pane === undefined ? [] : [pane];
+        });
 
   return (
     <main className="flex h-dvh min-h-0 min-w-0 flex-1 flex-col bg-background">
@@ -59,8 +69,21 @@ export function WorkbenchShell(props: {
         activeWindowId={activeWindow?.id ?? null}
         onActivate={(windowId) => dispatch({ kind: "activate-window", windowId })}
         onClose={(windowId) => dispatch({ kind: "close-window", windowId })}
-        onCreate={() => workbenchNavigation.createWindow(activeScope)}
+        onCreate={() => {
+          setPaneLauncherOpen(false);
+          workbenchNavigation.createWindow(activeScope);
+        }}
+        onCreatePane={() => setPaneLauncherOpen(true)}
       />
+      {activePanes.length > 0 ? (
+        <PaneTabs
+          panes={activePanes}
+          activePaneId={activeWindow?.activePaneId ?? null}
+          onActivate={(paneId) => dispatch({ kind: "activate-pane", paneId })}
+          onClose={(paneId) => dispatch({ kind: "close-pane", paneId })}
+          onCreate={() => setPaneLauncherOpen(true)}
+        />
+      ) : null}
       {quarantineVisible ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs">
           <span className="min-w-0 flex-1">
@@ -96,6 +119,12 @@ export function WorkbenchShell(props: {
       {activeWindow?.layout ? (
         <span className="sr-only">{paneIdsInLayout(activeWindow.layout).length} Panes</span>
       ) : null}
+      <Sheet open={paneLauncherOpen} onOpenChange={setPaneLauncherOpen}>
+        <SheetPopup side="bottom" className="max-h-[85dvh] rounded-t-xl" aria-label="Add Pane">
+          <SheetTitle className="sr-only">Add Pane</SheetTitle>
+          <PaneLauncher scope={activeScope} onOpened={() => setPaneLauncherOpen(false)} />
+        </SheetPopup>
+      </Sheet>
     </main>
   );
 }

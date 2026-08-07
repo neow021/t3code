@@ -56,6 +56,38 @@ export function resolveSidebarV2Enabled(input: {
     : resolveSidebarV2Default(input.stageLabel);
 }
 
+/**
+ * Whether Workbench is the default Web/Desktop renderer for a build stage.
+ *
+ * Dev and Nightly exercise one responsive Workbench surface at every browser
+ * width and origin. Alpha and Latest retain the legacy shell until the rollout
+ * gate is promoted.
+ */
+export function resolveWorkbenchDefault(stageLabel: string): boolean {
+  const stage = stageLabel.trim().toLowerCase();
+  return stage === "nightly" || stage === "dev";
+}
+
+/**
+ * Resolve the Workbench rollout without treating a newly opened browser origin
+ * as a separate product. A persisted explicit choice wins; otherwise every
+ * client on the same release channel gets the same default shell.
+ */
+export function resolveWorkbenchEnabled(input: {
+  readonly enabled: boolean;
+  readonly configuredByUser: boolean;
+  readonly settingsHydrated: boolean;
+  readonly stageLabel: string;
+}): boolean {
+  if (!input.settingsHydrated) {
+    return false;
+  }
+
+  return input.configuredByUser || input.enabled
+    ? input.enabled
+    : resolveWorkbenchDefault(input.stageLabel);
+}
+
 export function resolveServerBackedAppStageLabel(input: {
   readonly primaryServerVersion: string | null | undefined;
   readonly fallbackStageLabel: string;

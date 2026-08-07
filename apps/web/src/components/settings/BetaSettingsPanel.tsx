@@ -69,12 +69,15 @@ export function BetaSettingsPanel() {
       <SettingsSection title="Beta features">
         <SettingsRow
           {...searchableSetting("workbench")}
-          description="Machine → Repo → Worktree navigation with client-local Windows and Panes. Agent, Terminal, Files, Diff, Git Graph, and Browser are peer Pane types. Existing Mobile, T3 Connect, direct, Tailscale, and SSH access remain compatible."
+          description="One responsive Web/Desktop Workbench at every viewport width: Machine → Repo → Worktree navigation with client-local Windows and peer Agent, Terminal, Files, Diff, Git Graph, and Browser Panes. The native Mobile app, T3 Connect, direct, Tailscale, and SSH access remain compatible."
           control={
             <Switch
               checked={workbenchBetaEnabled}
               onCheckedChange={(checked) =>
-                updateSettings({ workbenchBetaEnabled: Boolean(checked) })
+                updateSettings({
+                  workbenchBetaEnabled: Boolean(checked),
+                  workbenchBetaConfiguredByUser: true,
+                })
               }
               aria-label="Enable the Workbench beta"
             />

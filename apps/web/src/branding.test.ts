@@ -4,6 +4,8 @@ import {
   resolveServerBackedAppStageLabel,
   resolveSidebarV2Default,
   resolveSidebarV2Enabled,
+  resolveWorkbenchDefault,
+  resolveWorkbenchEnabled,
 } from "./branding.logic";
 
 const originalWindow = globalThis.window;
@@ -183,6 +185,59 @@ describe("resolveSidebarV2Enabled", () => {
         configuredByUser: true,
         settingsHydrated: false,
         stageLabel: "Nightly",
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("resolveWorkbenchEnabled", () => {
+  const hydrated = { settingsHydrated: true } as const;
+
+  it.each(["Nightly", "Dev", "nightly", " dev "])(
+    "defaults the Web Workbench on for %s builds",
+    (stageLabel) => {
+      expect(resolveWorkbenchDefault(stageLabel)).toBe(true);
+      expect(
+        resolveWorkbenchEnabled({
+          ...hydrated,
+          enabled: false,
+          configuredByUser: false,
+          stageLabel,
+        }),
+      ).toBe(true);
+    },
+  );
+
+  it.each(["Alpha", "Latest", ""])("keeps %s builds on the legacy shell", (stageLabel) => {
+    expect(resolveWorkbenchDefault(stageLabel)).toBe(false);
+  });
+
+  it("preserves legacy opt-ins and honors explicit opt-outs", () => {
+    expect(
+      resolveWorkbenchEnabled({
+        ...hydrated,
+        enabled: true,
+        configuredByUser: false,
+        stageLabel: "Latest",
+      }),
+    ).toBe(true);
+    expect(
+      resolveWorkbenchEnabled({
+        ...hydrated,
+        enabled: false,
+        configuredByUser: true,
+        stageLabel: "Dev",
+      }),
+    ).toBe(false);
+  });
+
+  it("holds the legacy shell until client settings hydrate", () => {
+    expect(
+      resolveWorkbenchEnabled({
+        enabled: true,
+        configuredByUser: true,
+        settingsHydrated: false,
+        stageLabel: "Dev",
       }),
     ).toBe(false);
   });
