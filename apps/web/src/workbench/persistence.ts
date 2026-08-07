@@ -98,7 +98,18 @@ function readPane(id: WorkbenchPaneId, value: unknown): PaneDescriptor | null {
     }
     case "terminal": {
       const terminalId = nonEmptyString(value.terminalId);
-      return terminalId ? { ...base, kind: "terminal", terminalId } : null;
+      const threadId =
+        value.threadId === null || value.threadId === undefined
+          ? null
+          : (nonEmptyString(value.threadId) as ThreadId | null);
+      const cwd = nonEmptyString(value.cwd);
+      const worktreePath = value.worktreePath === null ? null : nonEmptyString(value.worktreePath);
+      return terminalId &&
+        (value.threadId === null || value.threadId === undefined || threadId) &&
+        cwd &&
+        (value.worktreePath === null || worktreePath)
+        ? { ...base, kind: "terminal", terminalId, threadId, cwd, worktreePath }
+        : null;
     }
     case "files": {
       const projectId = nonEmptyString(value.projectId) as ProjectId | null;
@@ -224,6 +235,15 @@ function readPanes(
   return panes;
 }
 
+function readLegacyImportMarkers(value: unknown): Record<string, true | undefined> {
+  if (!isRecord(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).flatMap(([key, imported]) =>
+      key.trim().length > 0 && imported === true ? [[key, true] as const] : [],
+    ),
+  );
+}
+
 function readWindow(
   value: unknown,
   expectedScopeKey: string,
@@ -330,6 +350,7 @@ export function restoreWorkbenchState(value: unknown): WorkbenchRestoreResult {
       windowsByScope,
       activeWindowByScope,
       panes,
+      legacyImportMarkers: readLegacyImportMarkers(value.legacyImportMarkers),
     },
     repairs,
     quarantine: null,

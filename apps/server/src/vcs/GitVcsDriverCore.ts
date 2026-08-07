@@ -32,6 +32,7 @@ import { decodeJsonResult } from "@t3tools/shared/schemaJson";
 import { gitCommandDuration, gitCommandsTotal, withMetrics } from "../observability/Metrics.ts";
 import * as GitVcsDriver from "./GitVcsDriver.ts";
 import { parseGitWorktreePorcelain } from "./GitWorktreePorcelain.ts";
+import { parseGitCommitGraphLog } from "./GitCommitGraphPorcelain.ts";
 import {
   parseRemoteNames,
   parseRemoteNamesInGitOrder,
@@ -2847,6 +2848,68 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     },
   );
 
+  const listCommitGraph: GitVcsDriver.GitVcsDriver["Service"]["listCommitGraph"] = Effect.fn(
+    "listCommitGraph",
+  )(function* (input) {
+    const repositoryPaths = yield* resolveRepositoryPaths(input.cwd, true).pipe(
+      Effect.catchTags({
+        GitCommandError: (error) =>
+          isMissingGitCwdError(error) ? Effect.succeed(null) : Effect.fail(error),
+      }),
+    );
+    const observedAt = yield* DateTime.now;
+    const freshness = {
+      source: "live-local" as const,
+      observedAt,
+      expiresAt: Option.none(),
+    };
+    if (repositoryPaths === null) {
+      return {
+        isRepo: false,
+        repositoryRoot: null,
+        headSha: null,
+        commits: [],
+        nextCursor: null,
+        freshness,
+      };
+    }
+
+    const repositoryRoot = repositoryPaths.worktreeRoot ?? input.cwd;
+    const cursor = input.cursor ?? 0;
+    const fetchCount = input.limit + 1;
+    const result = yield* executeGitWithStableDiagnostics(
+      "GitVcsDriver.listCommitGraph",
+      repositoryRoot,
+      [
+        "log",
+        "--all",
+        "--date-order",
+        "--decorate=full",
+        `--skip=${cursor}`,
+        `-n${fetchCount}`,
+        "--format=%H%x1f%h%x1f%P%x1f%an%x1f%ae%x1f%aI%x1f%D%x1f%s%x1e",
+      ],
+      {
+        timeoutMs: 30_000,
+        maxOutputBytes: 16 * 1024 * 1024,
+        fallbackErrorDetail: "Git commit graph enumeration failed.",
+      },
+    );
+    const parsed = parseGitCommitGraphLog(result.stdout);
+    const hasMore = parsed.length > input.limit;
+    const commits = hasMore ? parsed.slice(0, input.limit) : parsed;
+    const headSha =
+      commits.find((commit) => commit.refs.some((ref) => ref.kind === "head"))?.sha ?? null;
+    return {
+      isRepo: true,
+      repositoryRoot,
+      headSha,
+      commits,
+      nextCursor: hasMore ? cursor + commits.length : null,
+      freshness,
+    };
+  });
+
   const resolveRemoteTrackingCommit: GitVcsDriver.GitVcsDriver["Service"]["resolveRemoteTrackingCommit"] =
     Effect.fn("resolveRemoteTrackingCommit")(function* (input) {
       const remoteNames = yield* listRemoteNames(input.cwd);
@@ -3108,6 +3171,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
     readConfigValue,
     listRefs,
     listWorktrees,
+    listCommitGraph,
     createWorktree: (input) => withListRefsInvalidation(input.cwd, createWorktree(input)),
     fetchPullRequestBranch: (input) =>
       withListRefsInvalidation(input.cwd, fetchPullRequestBranch(input)),

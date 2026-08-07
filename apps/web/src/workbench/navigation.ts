@@ -1,4 +1,4 @@
-import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 
 import {
   activeWindow,
@@ -40,6 +40,52 @@ export interface RevealAgentInput {
 export interface OpenPaneInput {
   readonly pane: PaneDescriptor;
   readonly windowTitle?: string;
+  readonly targetPaneId?: WorkbenchPaneId | null;
+  readonly side?: SplitSide;
+}
+
+export interface RevealFilesInput {
+  readonly scope: WorkspaceScope;
+  readonly projectId: ProjectId;
+  readonly rootPath: string;
+  readonly title?: string;
+  readonly targetPaneId?: WorkbenchPaneId | null;
+  readonly side?: SplitSide;
+}
+
+export interface RevealDiffInput {
+  readonly scope: WorkspaceScope;
+  readonly target: Extract<PaneDescriptor, { kind: "diff" }>["target"];
+  readonly title?: string;
+  readonly targetPaneId?: WorkbenchPaneId | null;
+  readonly side?: SplitSide;
+}
+
+export interface RevealTerminalInput {
+  readonly scope: WorkspaceScope;
+  readonly cwd: string;
+  readonly worktreePath: string | null;
+  readonly threadId?: ThreadId | null;
+  readonly terminalId?: string;
+  readonly title?: string;
+  readonly targetPaneId?: WorkbenchPaneId | null;
+  readonly side?: SplitSide;
+}
+
+export interface RevealBrowserInput {
+  readonly scope: WorkspaceScope;
+  readonly previewId: string;
+  readonly threadId: ThreadId | null;
+  readonly title?: string;
+  readonly targetPaneId?: WorkbenchPaneId | null;
+  readonly side?: SplitSide;
+}
+
+export interface RevealGitGraphInput {
+  readonly scope: WorkspaceScope;
+  readonly repositoryKey: Extract<WorkspaceScope, { kind: "worktree" }>["repositoryKey"];
+  readonly canonicalWorktreePath: string;
+  readonly title?: string;
   readonly targetPaneId?: WorkbenchPaneId | null;
   readonly side?: SplitSide;
 }
@@ -88,6 +134,85 @@ function matchingAgentPane(
           : pane.target.kind === "draft" &&
             requested.target.kind === "draft" &&
             pane.target.draftId === requested.target.draftId),
+    ) ?? null
+  );
+}
+
+function matchingFilesPane(
+  state: WorkbenchState,
+  input: RevealFilesInput,
+): Extract<PaneDescriptor, { kind: "files" }> | null {
+  return (
+    Object.values(state.panes).find(
+      (pane): pane is Extract<PaneDescriptor, { kind: "files" }> =>
+        pane?.kind === "files" &&
+        pane.scope.environmentId === input.scope.environmentId &&
+        pane.rootPath === input.rootPath,
+    ) ?? null
+  );
+}
+
+function matchingDiffPane(
+  state: WorkbenchState,
+  input: RevealDiffInput,
+): Extract<PaneDescriptor, { kind: "diff" }> | null {
+  return (
+    Object.values(state.panes).find((pane): pane is Extract<PaneDescriptor, { kind: "diff" }> => {
+      if (pane?.kind !== "diff" || pane.scope.environmentId !== input.scope.environmentId) {
+        return false;
+      }
+      if (pane.target.kind !== input.target.kind) return false;
+      return pane.target.kind === "thread" && input.target.kind === "thread"
+        ? pane.target.threadId === input.target.threadId
+        : pane.target.kind === "worktree" && input.target.kind === "worktree"
+          ? pane.target.repositoryKey === input.target.repositoryKey &&
+            pane.target.canonicalWorktreePath === input.target.canonicalWorktreePath
+          : false;
+    }) ?? null
+  );
+}
+
+function matchingTerminalPane(
+  state: WorkbenchState,
+  input: RevealTerminalInput,
+): Extract<PaneDescriptor, { kind: "terminal" }> | null {
+  return (
+    Object.values(state.panes).find(
+      (pane): pane is Extract<PaneDescriptor, { kind: "terminal" }> =>
+        pane?.kind === "terminal" &&
+        pane.scope.environmentId === input.scope.environmentId &&
+        pane.threadId === (input.threadId ?? null) &&
+        pane.cwd === input.cwd &&
+        pane.worktreePath === input.worktreePath,
+    ) ?? null
+  );
+}
+
+function matchingBrowserPane(
+  state: WorkbenchState,
+  input: RevealBrowserInput,
+): Extract<PaneDescriptor, { kind: "browser" }> | null {
+  return (
+    Object.values(state.panes).find(
+      (pane): pane is Extract<PaneDescriptor, { kind: "browser" }> =>
+        pane?.kind === "browser" &&
+        pane.scope.environmentId === input.scope.environmentId &&
+        pane.previewId === input.previewId,
+    ) ?? null
+  );
+}
+
+function matchingGitGraphPane(
+  state: WorkbenchState,
+  input: RevealGitGraphInput,
+): Extract<PaneDescriptor, { kind: "git-graph" }> | null {
+  return (
+    Object.values(state.panes).find(
+      (pane): pane is Extract<PaneDescriptor, { kind: "git-graph" }> =>
+        pane?.kind === "git-graph" &&
+        pane.scope.environmentId === input.scope.environmentId &&
+        pane.repositoryKey === input.repositoryKey &&
+        pane.canonicalWorktreePath === input.canonicalWorktreePath,
     ) ?? null
   );
 }
@@ -171,6 +296,92 @@ export function createWorkbenchNavigation(options: WorkbenchNavigationOptions) {
     });
   };
 
+  const revealFiles = (input: RevealFilesInput): WorkbenchPaneId => {
+    const existing = matchingFilesPane(current(), input);
+    if (existing !== null) return revealPane(existing.id);
+    return openPane({
+      pane: {
+        id: createId("pane"),
+        kind: "files",
+        scope: input.scope,
+        projectId: input.projectId,
+        rootPath: input.rootPath,
+        title: input.title?.trim() || "Files",
+      },
+      ...(input.targetPaneId === undefined ? {} : { targetPaneId: input.targetPaneId }),
+      ...(input.side === undefined ? {} : { side: input.side }),
+    });
+  };
+
+  const revealDiff = (input: RevealDiffInput): WorkbenchPaneId => {
+    const existing = matchingDiffPane(current(), input);
+    if (existing !== null) return revealPane(existing.id);
+    return openPane({
+      pane: {
+        id: createId("pane"),
+        kind: "diff",
+        scope: input.scope,
+        target: input.target,
+        title: input.title?.trim() || "Changes",
+      },
+      ...(input.targetPaneId === undefined ? {} : { targetPaneId: input.targetPaneId }),
+      ...(input.side === undefined ? {} : { side: input.side }),
+    });
+  };
+
+  const revealTerminal = (input: RevealTerminalInput): WorkbenchPaneId => {
+    const existing = matchingTerminalPane(current(), input);
+    if (existing !== null) return revealPane(existing.id);
+    return openPane({
+      pane: {
+        id: createId("pane"),
+        kind: "terminal",
+        scope: input.scope,
+        terminalId: input.terminalId?.trim() || "term-1",
+        threadId: input.threadId ?? null,
+        cwd: input.cwd,
+        worktreePath: input.worktreePath,
+        title: input.title?.trim() || "Terminal",
+      },
+      ...(input.targetPaneId === undefined ? {} : { targetPaneId: input.targetPaneId }),
+      ...(input.side === undefined ? {} : { side: input.side }),
+    });
+  };
+
+  const revealBrowser = (input: RevealBrowserInput): WorkbenchPaneId => {
+    const existing = matchingBrowserPane(current(), input);
+    if (existing !== null) return revealPane(existing.id);
+    return openPane({
+      pane: {
+        id: createId("pane"),
+        kind: "browser",
+        scope: input.scope,
+        previewId: input.previewId,
+        threadId: input.threadId,
+        title: input.title?.trim() || "Browser",
+      },
+      ...(input.targetPaneId === undefined ? {} : { targetPaneId: input.targetPaneId }),
+      ...(input.side === undefined ? {} : { side: input.side }),
+    });
+  };
+
+  const revealGitGraph = (input: RevealGitGraphInput): WorkbenchPaneId => {
+    const existing = matchingGitGraphPane(current(), input);
+    if (existing !== null) return revealPane(existing.id);
+    return openPane({
+      pane: {
+        id: createId("pane"),
+        kind: "git-graph",
+        scope: input.scope,
+        repositoryKey: input.repositoryKey,
+        canonicalWorktreePath: input.canonicalWorktreePath,
+        title: input.title?.trim() || "Git Graph",
+      },
+      ...(input.targetPaneId === undefined ? {} : { targetPaneId: input.targetPaneId }),
+      ...(input.side === undefined ? {} : { side: input.side }),
+    });
+  };
+
   const promoteDraft = (input: {
     readonly environmentId: EnvironmentId;
     readonly draftId: string;
@@ -208,14 +419,36 @@ export function createWorkbenchNavigation(options: WorkbenchNavigationOptions) {
     return canonical?.id ?? survivingPaneId;
   };
 
+  const markLegacyImported = (markerKey: string): void => {
+    options.state.dispatch({ kind: "mark-legacy-imported", markerKey });
+  };
+
   return {
     selectScope,
     createWindow,
     revealWindow,
     revealPane,
     revealAgent,
+    revealFiles,
+    revealDiff,
+    revealTerminal,
+    revealBrowser,
+    revealGitGraph,
     openPane,
     promoteDraft,
+    markLegacyImported,
+    wasLegacyImported: (markerKey: string) => current().legacyImportMarkers[markerKey] === true,
+    pane: (paneId: WorkbenchPaneId) => current().panes[paneId] ?? null,
+    findAgent: (input: Pick<RevealAgentInput, "scope" | "target" | "title">) =>
+      matchingAgentPane(
+        current(),
+        createAgentPaneDescriptor({
+          id: "pane:lookup-only",
+          scope: input.scope,
+          target: input.target,
+          title: input.title,
+        }),
+      )?.id ?? null,
     activeWindow: () => activeWindow(current()),
   };
 }

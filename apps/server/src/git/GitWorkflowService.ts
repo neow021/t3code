@@ -17,6 +17,8 @@ import {
   type VcsListRefsResult,
   type VcsListWorktreesInput,
   type VcsListWorktreesResult,
+  type VcsListCommitGraphInput,
+  type VcsListCommitGraphResult,
   type GitManagerServiceError,
   type GitPreparePullRequestThreadInput,
   type GitPreparePullRequestThreadResult,
@@ -69,6 +71,9 @@ export class GitWorkflowService extends Context.Service<
     readonly listWorktrees: (
       input: VcsListWorktreesInput,
     ) => Effect.Effect<VcsListWorktreesResult, GitCommandError>;
+    readonly listCommitGraph: (
+      input: VcsListCommitGraphInput,
+    ) => Effect.Effect<VcsListCommitGraphResult, GitCommandError>;
     readonly createWorktree: (
       input: VcsCreateWorktreeInput,
     ) => Effect.Effect<VcsCreateWorktreeResult, GitCommandError>;
@@ -152,6 +157,23 @@ const nonRepositoryWorktreeInventory = Effect.fn(
     },
   };
 });
+
+const nonRepositoryCommitGraph = Effect.fn("GitWorkflowService.nonRepositoryCommitGraph")(
+  function* (): Effect.fn.Return<VcsListCommitGraphResult> {
+    return {
+      isRepo: false,
+      repositoryRoot: null,
+      headSha: null,
+      commits: [],
+      nextCursor: null,
+      freshness: {
+        source: "live-local",
+        observedAt: yield* DateTime.now,
+        expiresAt: Option.none(),
+      },
+    };
+  },
+);
 
 export const make = Effect.gen(function* () {
   const registry = yield* VcsDriverRegistry.VcsDriverRegistry;
@@ -322,6 +344,12 @@ export const make = Effect.gen(function* () {
       detectGitRepositoryForCommand("GitWorkflowService.listWorktrees", input.cwd).pipe(
         Effect.flatMap((isGitRepository) =>
           isGitRepository ? git.listWorktrees(input) : nonRepositoryWorktreeInventory(),
+        ),
+      ),
+    listCommitGraph: (input) =>
+      detectGitRepositoryForCommand("GitWorkflowService.listCommitGraph", input.cwd).pipe(
+        Effect.flatMap((isGitRepository) =>
+          isGitRepository ? git.listCommitGraph(input) : nonRepositoryCommitGraph(),
         ),
       ),
     createWorktree: (input) =>

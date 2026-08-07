@@ -40,6 +40,9 @@ export type PaneDescriptor =
   | (PaneDescriptorBase & {
       kind: "terminal";
       terminalId: string;
+      threadId: ThreadId | null;
+      cwd: string;
+      worktreePath: string | null;
     })
   | (PaneDescriptorBase & {
       kind: "files";
@@ -94,6 +97,7 @@ export interface WorkbenchState {
   windowsByScope: Record<WorkbenchScopeKey, WorkbenchWindow[] | undefined>;
   activeWindowByScope: Record<WorkbenchScopeKey, WorkbenchWindowId | undefined>;
   panes: Record<WorkbenchPaneId, PaneDescriptor | undefined>;
+  legacyImportMarkers: Record<string, true | undefined>;
 }
 
 export type WorkbenchCommand =
@@ -126,7 +130,8 @@ export type WorkbenchCommand =
       path: PaneLayoutPath;
       firstSize: number;
       secondSize: number;
-    };
+    }
+  | { kind: "mark-legacy-imported"; markerKey: string };
 
 export class WorkbenchInvariantError extends Error {
   constructor(message: string) {
@@ -142,6 +147,7 @@ export function emptyWorkbenchState(): WorkbenchState {
     windowsByScope: {},
     activeWindowByScope: {},
     panes: {},
+    legacyImportMarkers: {},
   };
 }
 
@@ -485,6 +491,15 @@ export function applyWorkbenchCommand(
   command: WorkbenchCommand,
 ): WorkbenchState {
   switch (command.kind) {
+    case "mark-legacy-imported": {
+      const markerKey = requireNonEmpty(command.markerKey, "legacy import marker");
+      if (state.legacyImportMarkers[markerKey]) return state;
+      return {
+        ...state,
+        legacyImportMarkers: { ...state.legacyImportMarkers, [markerKey]: true },
+      };
+    }
+
     case "select-scope":
       return { ...state, activeScope: command.scope };
 

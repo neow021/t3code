@@ -143,6 +143,7 @@ export const make = Effect.gen(function* () {
     capabilities: {
       repositoryIdentity: true,
       worktreeInventory: true,
+      gitCommitGraph: true,
       connectionProbe: true,
       threadSettlement: true,
       threadSnooze: true,

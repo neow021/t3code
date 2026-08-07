@@ -27,6 +27,8 @@ import {
   type VcsListRefsResult,
   type VcsListWorktreesInput,
   type VcsListWorktreesResult,
+  type VcsListCommitGraphInput,
+  type VcsListCommitGraphResult,
   type VcsPullResult,
   type VcsRemoveWorktreeInput,
   type VcsStatusInput,
@@ -238,6 +240,9 @@ export class GitVcsDriver extends Context.Service<
     readonly listWorktrees: (
       input: VcsListWorktreesInput,
     ) => Effect.Effect<VcsListWorktreesResult, GitCommandError>;
+    readonly listCommitGraph: (
+      input: VcsListCommitGraphInput,
+    ) => Effect.Effect<VcsListCommitGraphResult, GitCommandError>;
     readonly pullCurrentBranch: (cwd: string) => Effect.Effect<VcsPullResult, GitCommandError>;
     readonly createWorktree: (
       input: VcsCreateWorktreeInput,

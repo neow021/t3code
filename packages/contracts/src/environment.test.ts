@@ -22,14 +22,20 @@ describe("ExecutionEnvironmentDescriptor compatibility", () => {
     });
 
     expect(descriptor.capabilities.worktreeInventory).toBeUndefined();
+    expect(descriptor.capabilities.gitCommitGraph).toBeUndefined();
   });
 
   it("decodes newer servers that advertise worktree inventory", () => {
     const descriptor = decodeExecutionEnvironmentDescriptor({
       ...baseDescriptor,
-      capabilities: { repositoryIdentity: true, worktreeInventory: true },
+      capabilities: {
+        repositoryIdentity: true,
+        worktreeInventory: true,
+        gitCommitGraph: true,
+      },
     });
 
     expect(descriptor.capabilities.worktreeInventory).toBe(true);
+    expect(descriptor.capabilities.gitCommitGraph).toBe(true);
   });
 });

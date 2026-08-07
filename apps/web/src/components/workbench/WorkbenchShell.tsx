@@ -56,7 +56,7 @@ export function WorkbenchShell(props: {
       />
       <div className="min-h-0 flex-1 p-1.5">
         {activeWindow?.layout === null || activeWindow === null || shared === null ? (
-          <PaneLauncher />
+          <PaneLauncher scope={activeScope} />
         ) : (
           <>
             <div className="hidden size-full min-h-0 md:block">

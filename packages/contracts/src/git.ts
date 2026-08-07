@@ -5,6 +5,7 @@ import { VcsDriverKind, VcsFreshness } from "./vcs.ts";
 
 const TrimmedNonEmptyStringSchema = TrimmedNonEmptyString;
 const GIT_LIST_BRANCHES_MAX_LIMIT = 200;
+const GIT_COMMIT_GRAPH_MAX_LIMIT = 1_000;
 
 // Domain Types
 
@@ -96,6 +97,25 @@ export const VcsWorktreeInventoryEntry = Schema.Struct({
 });
 export type VcsWorktreeInventoryEntry = typeof VcsWorktreeInventoryEntry.Type;
 
+export const VcsCommitGraphRef = Schema.Struct({
+  name: TrimmedNonEmptyStringSchema,
+  kind: Schema.Literals(["branch", "remote", "tag", "head"]),
+  current: Schema.Boolean,
+});
+export type VcsCommitGraphRef = typeof VcsCommitGraphRef.Type;
+
+export const VcsCommitGraphCommit = Schema.Struct({
+  sha: TrimmedNonEmptyStringSchema,
+  shortSha: TrimmedNonEmptyStringSchema,
+  parents: Schema.Array(TrimmedNonEmptyStringSchema),
+  subject: Schema.String,
+  authorName: Schema.String,
+  authorEmail: Schema.String,
+  committedAt: TrimmedNonEmptyStringSchema,
+  refs: Schema.Array(VcsCommitGraphRef),
+});
+export type VcsCommitGraphCommit = typeof VcsCommitGraphCommit.Type;
+
 const VcsWorktree = Schema.Struct({
   path: TrimmedNonEmptyStringSchema,
   refName: TrimmedNonEmptyStringSchema,
@@ -151,6 +171,13 @@ export const VcsListWorktreesInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
 });
 export type VcsListWorktreesInput = typeof VcsListWorktreesInput.Type;
+
+export const VcsListCommitGraphInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  cursor: Schema.optional(NonNegativeInt),
+  limit: PositiveInt.check(Schema.isLessThanOrEqualTo(GIT_COMMIT_GRAPH_MAX_LIMIT)),
+});
+export type VcsListCommitGraphInput = typeof VcsListCommitGraphInput.Type;
 
 export const VcsCreateWorktreeInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
@@ -288,6 +315,16 @@ export const VcsListWorktreesResult = Schema.Struct({
   freshness: VcsFreshness,
 });
 export type VcsListWorktreesResult = typeof VcsListWorktreesResult.Type;
+
+export const VcsListCommitGraphResult = Schema.Struct({
+  isRepo: Schema.Boolean,
+  repositoryRoot: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  headSha: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  commits: Schema.Array(VcsCommitGraphCommit),
+  nextCursor: NonNegativeInt.pipe(Schema.NullOr),
+  freshness: VcsFreshness,
+});
+export type VcsListCommitGraphResult = typeof VcsListCommitGraphResult.Type;
 
 export const VcsCreateWorktreeResult = Schema.Struct({
   worktree: VcsWorktree,

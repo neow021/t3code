@@ -131,6 +131,7 @@ import {
   useThreadPreviewState,
 } from "../previewStateStore";
 import { addBrowserSurface } from "./preview/addBrowserSurface";
+import { openPreviewSession } from "./preview/openPreviewSession";
 import { closePreviewSession } from "./preview/closePreviewSession";
 import { ThreadPreviewMiniPlayer } from "./preview/ThreadPreviewMiniPlayer";
 import { subscribePreviewAction } from "./preview/previewActionBus";
@@ -471,6 +472,8 @@ type ChatViewProps =
       onDiffPanelOpen?: () => void;
       reserveTitleBarControlInset?: boolean;
       forceExpandedMobileComposer?: boolean;
+      compositionMode?: "legacy" | "workbench";
+      workbenchPaneActions?: WorkbenchAgentPaneActions;
       threadSyncPhase?: ThreadSyncPhase | null;
       routeKind: "server";
       draftId?: never;
@@ -481,10 +484,20 @@ type ChatViewProps =
       onDiffPanelOpen?: () => void;
       reserveTitleBarControlInset?: boolean;
       forceExpandedMobileComposer?: boolean;
+      compositionMode?: "legacy" | "workbench";
+      workbenchPaneActions?: WorkbenchAgentPaneActions;
       threadSyncPhase?: never;
       routeKind: "draft";
       draftId: DraftId;
     };
+
+export interface WorkbenchAgentPaneActions {
+  readonly openDiff: () => void;
+  readonly openFiles: () => void;
+  readonly openFile: (relativePath: string) => void;
+  readonly openTerminal: () => void;
+  readonly openBrowser: (previewId: string) => void;
+}
 
 interface TerminalLaunchContext {
   threadId: ThreadId;
@@ -1151,7 +1164,10 @@ function ChatViewContent(props: ChatViewProps) {
     onDiffPanelOpen,
     reserveTitleBarControlInset = true,
     forceExpandedMobileComposer = false,
+    compositionMode = "legacy",
+    workbenchPaneActions,
   } = props;
+  const workbenchComposition = compositionMode === "workbench";
   const draftId = routeKind === "draft" ? props.draftId : null;
   const threadSyncPhase = routeKind === "server" ? (props.threadSyncPhase ?? null) : null;
   const threadDetailLoading = threadSyncPhase === "loading";
@@ -2537,13 +2553,24 @@ function ChatViewContent(props: ChatViewProps) {
     if (!isServerThread) {
       return;
     }
+    if (workbenchComposition) {
+      workbenchPaneActions?.openDiff();
+      return;
+    }
     if (!diffOpen) {
       onDiffPanelOpen?.();
     }
     if (activeThreadRef) {
       useRightPanelStore.getState().toggle(activeThreadRef, "diff");
     }
-  }, [activeThreadRef, diffOpen, isServerThread, onDiffPanelOpen]);
+  }, [
+    activeThreadRef,
+    diffOpen,
+    isServerThread,
+    onDiffPanelOpen,
+    workbenchComposition,
+    workbenchPaneActions,
+  ]);
 
   const envLocked = Boolean(
     activeThread &&
@@ -2638,6 +2665,10 @@ function ChatViewContent(props: ChatViewProps) {
   );
   const toggleTerminalVisibility = useCallback(() => {
     if (!activeThreadRef) return;
+    if (workbenchComposition) {
+      workbenchPaneActions?.openTerminal();
+      return;
+    }
     const nextOpen = !terminalUiState.terminalOpen;
     if (nextOpen && terminalUiState.terminalIds.length === 0) {
       if (!activeThreadId || !activeProject) {
@@ -2678,9 +2709,15 @@ function ChatViewContent(props: ChatViewProps) {
     storeEnsureTerminal,
     terminalUiState.terminalIds.length,
     terminalUiState.terminalOpen,
+    workbenchComposition,
+    workbenchPaneActions,
   ]);
   const splitTerminal = useCallback(
     (direction: "horizontal" | "vertical" = "horizontal") => {
+      if (workbenchComposition) {
+        workbenchPaneActions?.openTerminal();
+        return;
+      }
       if (!activeThreadRef || hasReachedSplitLimit || !activeThreadId || !activeProject) {
         return;
       }
@@ -2721,9 +2758,15 @@ function ChatViewContent(props: ChatViewProps) {
       hasReachedSplitLimit,
       storeSplitTerminal,
       storeSplitTerminalVertical,
+      workbenchComposition,
+      workbenchPaneActions,
     ],
   );
   const createNewTerminal = useCallback(() => {
+    if (workbenchComposition) {
+      workbenchPaneActions?.openTerminal();
+      return;
+    }
     if (!activeThreadRef || !activeThreadId || !activeProject) {
       return;
     }
@@ -2757,6 +2800,8 @@ function ChatViewContent(props: ChatViewProps) {
     environmentId,
     gitCwd,
     storeNewTerminal,
+    workbenchComposition,
+    workbenchPaneActions,
   ]);
   const closeTerminal = useCallback(
     (terminalId: string) => {
@@ -3113,10 +3158,20 @@ function ChatViewContent(props: ChatViewProps) {
   }, [activeThreadRef, dismissPlanSidebarForCurrentTurn]);
   const createBrowserSurface = useCallback(() => {
     if (!activeThreadRef) return;
+    if (workbenchComposition) {
+      void openPreviewSession({ threadRef: activeThreadRef, openPreview }).then((result) => {
+        if (result._tag === "Success") workbenchPaneActions?.openBrowser(result.value.tabId);
+      });
+      return;
+    }
     void addBrowserSurface({ threadRef: activeThreadRef, openPreview });
-  }, [activeThreadRef, openPreview]);
+  }, [activeThreadRef, openPreview, workbenchComposition, workbenchPaneActions]);
   const addDiffSurface = useCallback(() => {
     if (!activeThreadRef || !isServerThread || !isGitRepo) return;
+    if (workbenchComposition) {
+      workbenchPaneActions?.openDiff();
+      return;
+    }
     if (planSidebarOpen) {
       dismissPlanSidebarForCurrentTurn();
     }
@@ -3129,20 +3184,39 @@ function ChatViewContent(props: ChatViewProps) {
     isServerThread,
     onDiffPanelOpen,
     planSidebarOpen,
+    workbenchComposition,
+    workbenchPaneActions,
   ]);
   const addFilesSurface = useCallback(() => {
     if (!activeThreadRef || !activeProject) return;
+    if (workbenchComposition) {
+      workbenchPaneActions?.openFiles();
+      return;
+    }
     useRightPanelStore.getState().open(activeThreadRef, "files");
-  }, [activeProject, activeThreadRef]);
+  }, [activeProject, activeThreadRef, workbenchComposition, workbenchPaneActions]);
   const openFileSurface = useCallback(
     (relativePath: string) => {
       if (!activeThreadRef || !activeProject) return;
+      if (workbenchComposition) {
+        workbenchPaneActions?.openFile(relativePath);
+        return;
+      }
       useRightPanelStore.getState().openFile(activeThreadRef, relativePath);
     },
-    [activeProject, activeThreadRef],
+    [activeProject, activeThreadRef, workbenchComposition, workbenchPaneActions],
   );
   const togglePreviewPanel = useCallback(() => {
     if (!activeThreadRef || !isPreviewSupportedInRuntime()) return;
+    if (workbenchComposition) {
+      const activeTabId = activePreviewState.activeTabId;
+      if (activeTabId) {
+        workbenchPaneActions?.openBrowser(activeTabId);
+      } else {
+        createBrowserSurface();
+      }
+      return;
+    }
     if (previewPanelOpen) {
       useRightPanelStore.getState().close(activeThreadRef);
       return;
@@ -3153,7 +3227,14 @@ function ChatViewContent(props: ChatViewProps) {
     } else {
       createBrowserSurface();
     }
-  }, [activePreviewState.activeTabId, activeThreadRef, createBrowserSurface, previewPanelOpen]);
+  }, [
+    activePreviewState.activeTabId,
+    activeThreadRef,
+    createBrowserSurface,
+    previewPanelOpen,
+    workbenchComposition,
+    workbenchPaneActions,
+  ]);
   const closePreviewPanel = useCallback(() => {
     if (activeThreadRef) {
       setMaximizedRightPanelThreadKey(null);
@@ -3162,6 +3243,10 @@ function ChatViewContent(props: ChatViewProps) {
   }, [activeThreadRef]);
   const addTerminalSurface = useCallback(() => {
     if (!activeThreadRef || !activeThreadId || !activeProject) return;
+    if (workbenchComposition) {
+      workbenchPaneActions?.openTerminal();
+      return;
+    }
     const cwd = gitCwd ?? activeProject.workspaceRoot;
     const terminalId = nextTerminalId(allocatableActiveTerminalIds);
     useRightPanelStore.getState().openTerminal(activeThreadRef, terminalId);
@@ -3187,6 +3272,8 @@ function ChatViewContent(props: ChatViewProps) {
     allocatableActiveTerminalIds,
     gitCwd,
     openTerminal,
+    workbenchComposition,
+    workbenchPaneActions,
   ]);
   const splitPanelTerminal = useCallback(
     (direction: "horizontal" | "vertical" = "horizontal") => {
@@ -5681,7 +5768,7 @@ function ChatViewContent(props: ChatViewProps) {
     return <NoActiveThreadState />;
   }
 
-  const panelToggleControls = (
+  const panelToggleControls = workbenchComposition ? null : (
     <PanelLayoutControls
       terminalAvailable={activeProject !== null}
       terminalOpen={terminalUiState.terminalOpen}
@@ -6096,7 +6183,7 @@ function ChatViewContent(props: ChatViewProps) {
               </div>
             </div>
 
-            {activeThreadRef && activePreviewMiniPlayer ? (
+            {!workbenchComposition && activeThreadRef && activePreviewMiniPlayer ? (
               <ThreadPreviewMiniPlayer
                 key={`${activeThreadKey}:${activePreviewMiniPlayer.tabId}`}
                 threadRef={activeThreadRef}
@@ -6156,27 +6243,32 @@ function ChatViewContent(props: ChatViewProps) {
         </div>
         {/* end horizontal flex container */}
 
-        {mountedTerminalThreadRefs.map(({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
-          <PersistentThreadTerminalDrawer
-            key={mountedThreadKey}
-            threadRef={mountedThreadRef}
-            threadId={mountedThreadRef.threadId}
-            visible={mountedThreadKey === activeThreadKey && terminalUiState.terminalOpen}
-            launchContext={
-              mountedThreadKey === activeThreadKey ? (activeTerminalLaunchContext ?? null) : null
-            }
-            focusRequestId={mountedThreadKey === activeThreadKey ? terminalFocusRequestId : 0}
-            splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
-            splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
-            newShortcutLabel={newTerminalShortcutLabel ?? undefined}
-            closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
-            keybindings={keybindings}
-            onAddTerminalContext={addTerminalContextToDraft}
-          />
-        ))}
+        {!workbenchComposition &&
+          mountedTerminalThreadRefs.map(
+            ({ key: mountedThreadKey, threadRef: mountedThreadRef }) => (
+              <PersistentThreadTerminalDrawer
+                key={mountedThreadKey}
+                threadRef={mountedThreadRef}
+                threadId={mountedThreadRef.threadId}
+                visible={mountedThreadKey === activeThreadKey && terminalUiState.terminalOpen}
+                launchContext={
+                  mountedThreadKey === activeThreadKey
+                    ? (activeTerminalLaunchContext ?? null)
+                    : null
+                }
+                focusRequestId={mountedThreadKey === activeThreadKey ? terminalFocusRequestId : 0}
+                splitShortcutLabel={splitTerminalShortcutLabel ?? undefined}
+                splitVerticalShortcutLabel={splitTerminalVerticalShortcutLabel ?? undefined}
+                newShortcutLabel={newTerminalShortcutLabel ?? undefined}
+                closeShortcutLabel={closeTerminalShortcutLabel ?? undefined}
+                keybindings={keybindings}
+                onAddTerminalContext={addTerminalContextToDraft}
+              />
+            ),
+          )}
       </div>
 
-      {!shouldUsePlanSidebarSheet && rightPanelOpen && activeThreadRef ? (
+      {!workbenchComposition && !shouldUsePlanSidebarSheet && rightPanelOpen && activeThreadRef ? (
         <RightPanelTabs
           mode="inline"
           maximized={rightPanelMaximized}
@@ -6202,7 +6294,7 @@ function ChatViewContent(props: ChatViewProps) {
           {rightPanelContent}
         </RightPanelTabs>
       ) : null}
-      {shouldUsePlanSidebarSheet && rightPanelOpen && activeThreadRef ? (
+      {!workbenchComposition && shouldUsePlanSidebarSheet && rightPanelOpen && activeThreadRef ? (
         <RightPanelSheet open onClose={planSidebarOpen ? closePlanSidebar : closePreviewPanel}>
           <RightPanelTabs
             mode="sheet"

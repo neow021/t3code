@@ -346,6 +346,15 @@ interface DiffPanelProps {
   mode?: DiffPanelMode;
   composerDraftTarget: ScopedThreadRef | DraftId;
   initialGitScope: "branch" | "unstaged";
+  /** Explicit target used by Workbench Panes; legacy callers may continue using the route. */
+  target?:
+    | { readonly kind: "thread"; readonly threadRef: ScopedThreadRef }
+    | {
+        readonly kind: "worktree";
+        readonly environmentId: ScopedThreadRef["environmentId"];
+        readonly cwd: string;
+        readonly selectionRef: ScopedThreadRef;
+      };
 }
 
 export { DiffWorkerPoolProvider } from "./DiffWorkerPoolProvider";
@@ -354,6 +363,7 @@ export default function DiffPanel({
   mode = "inline",
   composerDraftTarget,
   initialGitScope: initialGitScopeProp,
+  target,
 }: DiffPanelProps) {
   const { resolvedTheme } = useTheme();
   const settings = useClientSettings();
@@ -373,10 +383,17 @@ export default function DiffPanel({
     readonly turnId: TurnId | null;
   } | null>(null);
 
-  const routeThreadRef = useParams({
+  const legacyRouteThreadRef = useParams({
     strict: false,
     select: (params) => resolveThreadRouteRef(params),
   });
+  const routeThreadRef =
+    target?.kind === "thread"
+      ? target.threadRef
+      : target?.kind === "worktree"
+        ? null
+        : legacyRouteThreadRef;
+  const selectionRef = target?.kind === "worktree" ? target.selectionRef : routeThreadRef;
   const activeThreadId = routeThreadRef?.threadId ?? null;
   const activeThread = useThread(routeThreadRef);
   const activeProjectId = activeThread?.projectId ?? null;
@@ -388,29 +405,28 @@ export default function DiffPanel({
         }
       : null,
   );
-  const activeCwd = activeThread?.worktreePath ?? activeProject?.workspaceRoot;
-  const serverConfig = useAtomValue(
-    serverEnvironment.configValueAtom(activeThread?.environmentId ?? null),
-  );
+  const targetEnvironmentId =
+    target?.kind === "worktree" ? target.environmentId : activeThread?.environmentId;
+  const activeCwd =
+    target?.kind === "worktree"
+      ? target.cwd
+      : (activeThread?.worktreePath ?? activeProject?.workspaceRoot);
+  const serverConfig = useAtomValue(serverEnvironment.configValueAtom(targetEnvironmentId ?? null));
   const openInPreferredEditor = useOpenInPreferredEditor(
-    activeThread?.environmentId ?? null,
+    targetEnvironmentId ?? null,
     serverConfig?.availableEditors ?? [],
   );
   const getDiffFileContents = useAtomCommand(reviewEnvironment.diffFileContents);
   const gitStatusQuery = useEnvironmentQuery(
-    activeThread !== null && activeThread !== undefined && activeCwd != null
+    targetEnvironmentId !== undefined && activeCwd != null
       ? vcsEnvironment.status({
-          environmentId: activeThread.environmentId,
+          environmentId: targetEnvironmentId,
           input: { cwd: activeCwd },
         })
       : null,
   );
   const diffSelection = useDiffPanelStore((state) =>
-    selectThreadDiffPanelSelection(
-      state.byThreadKey,
-      routeThreadRef,
-      initialGitScope === "unstaged",
-    ),
+    selectThreadDiffPanelSelection(state.byThreadKey, selectionRef, initialGitScope === "unstaged"),
   );
   const isGitRepo = gitStatusQuery.data?.isRepo ?? true;
   const { turnDiffSummaries, inferredCheckpointTurnCountByTurnId } =
@@ -431,12 +447,12 @@ export default function DiffPanel({
   );
 
   useEffect(() => {
-    if (!routeThreadRef || diffSelection.kind !== "turn") return;
+    if (!selectionRef || !routeThreadRef || diffSelection.kind !== "turn") return;
     useDiffPanelStore.getState().reconcileTurnSelection(
-      routeThreadRef,
+      selectionRef,
       orderedTurnDiffSummaries.map((summary) => summary.turnId),
     );
-  }, [diffSelection, orderedTurnDiffSummaries, routeThreadRef]);
+  }, [diffSelection, orderedTurnDiffSummaries, routeThreadRef, selectionRef]);
 
   const selectedTurnId = diffSelection.kind === "turn" ? diffSelection.turnId : null;
   const selectedGitScope = diffSelection.kind === "unstaged" ? "unstaged" : "branch";
@@ -462,8 +478,8 @@ export default function DiffPanel({
         ? "Latest turn"
         : `Turn ${selectedCheckpointTurnCount ?? "?"}`;
   const reviewSectionId = selectedTurn ? `turn:${selectedTurn.turnId}` : selectedGitScope;
-  const collapseScopeKey = routeThreadRef
-    ? `${routeThreadRef.environmentId}:${routeThreadRef.threadId}:${reviewSectionId}`
+  const collapseScopeKey = selectionRef
+    ? `${selectionRef.environmentId}:${selectionRef.threadId}:${reviewSectionId}`
     : null;
   const codeViewMountKey = `${collapseScopeKey ?? reviewSectionId}:${codeViewRevision}`;
   const collapsedDiffFileKeys =
@@ -497,9 +513,9 @@ export default function DiffPanel({
     { enabled: isGitRepo && selectedTurn !== undefined },
   );
   const primaryBranchDiffPreview = useEnvironmentQuery(
-    selectedTurnId === null && activeThread && activeCwd
+    selectedTurnId === null && targetEnvironmentId !== undefined && activeCwd
       ? reviewEnvironment.diffPreview({
-          environmentId: activeThread.environmentId,
+          environmentId: targetEnvironmentId,
           input: {
             cwd: activeCwd,
             ...(selectedBaseRef ? { baseRef: selectedBaseRef } : {}),
@@ -514,9 +530,9 @@ export default function DiffPanel({
     serverConfig?.cwd !== undefined &&
     serverConfig.cwd !== activeCwd;
   const fallbackBranchDiffPreview = useEnvironmentQuery(
-    shouldRetryBranchDiffAtEnvironmentCwd && activeThread && serverConfig
+    shouldRetryBranchDiffAtEnvironmentCwd && targetEnvironmentId !== undefined && serverConfig
       ? reviewEnvironment.diffPreview({
-          environmentId: activeThread.environmentId,
+          environmentId: targetEnvironmentId,
           input: {
             cwd: serverConfig.cwd,
             ...(selectedBaseRef ? { baseRef: selectedBaseRef } : {}),
@@ -530,10 +546,11 @@ export default function DiffPanel({
     : primaryBranchDiffPreview;
   const refreshBranchDiffPreview = branchDiffPreview.refresh;
   const canRefreshGitDiff =
-    isGitRepo && selectedTurnId === null && activeThread != null && activeCwd != null;
-  const activeThreadRefreshKey = routeThreadRef
-    ? `${routeThreadRef.environmentId}:${routeThreadRef.threadId}`
-    : null;
+    isGitRepo && selectedTurnId === null && targetEnvironmentId !== undefined && activeCwd != null;
+  const activeThreadRefreshKey =
+    targetEnvironmentId === undefined || activeCwd == null
+      ? null
+      : `${targetEnvironmentId}:${activeCwd}`;
 
   useEffect(() => {
     if (!canRefreshGitDiff) return;
@@ -565,7 +582,12 @@ export default function DiffPanel({
   );
   const loadDiffFiles = useMemo<FileDiffContentsLoader | undefined>(() => {
     const preview = branchDiffPreview.data;
-    if (selectedTurnId !== null || !activeThread || !preview || !selectedGitSource) {
+    if (
+      selectedTurnId !== null ||
+      targetEnvironmentId === undefined ||
+      !preview ||
+      !selectedGitSource
+    ) {
       return undefined;
     }
 
@@ -576,7 +598,7 @@ export default function DiffPanel({
         ? resolveFileDiffPath({ ...fileDiff, name: fileDiff.prevName })
         : newPath;
       const result = await getDiffFileContents({
-        environmentId: activeThread.environmentId,
+        environmentId: targetEnvironmentId,
         input: {
           cwd: preview.cwd,
           sourceKind: source.kind,
@@ -609,19 +631,19 @@ export default function DiffPanel({
       };
     };
   }, [
-    activeThread,
     branchDiffPreview.data,
     getDiffFileContents,
     selectedGitSource,
     selectedTurnId,
+    targetEnvironmentId,
   ]);
   const localBranchRefs = useEnvironmentQuery(
     selectedTurnId === null &&
       selectedGitScope === "branch" &&
-      activeThread &&
+      targetEnvironmentId !== undefined &&
       branchDiffPreview.data?.cwd
       ? vcsEnvironment.listRefs({
-          environmentId: activeThread.environmentId,
+          environmentId: targetEnvironmentId,
           input: {
             cwd: branchDiffPreview.data.cwd,
             includeMatchingRemoteRefs: true,
@@ -635,10 +657,10 @@ export default function DiffPanel({
   const remoteBranchRefs = useEnvironmentQuery(
     selectedTurnId === null &&
       selectedGitScope === "branch" &&
-      activeThread &&
+      targetEnvironmentId !== undefined &&
       branchDiffPreview.data?.cwd
       ? vcsEnvironment.listRefs({
-          environmentId: activeThread.environmentId,
+          environmentId: targetEnvironmentId,
           input: {
             cwd: branchDiffPreview.data.cwd,
             includeMatchingRemoteRefs: true,
@@ -779,16 +801,16 @@ export default function DiffPanel({
   }, [collapseScopeKey, diffFileKeys]);
 
   const selectTurn = (turnId: TurnId) => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectTurn(routeThreadRef, turnId);
+    if (!selectionRef || !routeThreadRef) return;
+    useDiffPanelStore.getState().selectTurn(selectionRef, turnId);
   };
   const selectGitScope = (scope: "branch" | "unstaged") => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectGitScope(routeThreadRef, scope);
+    if (!selectionRef) return;
+    useDiffPanelStore.getState().selectGitScope(selectionRef, scope);
   };
   const selectBranchBaseRef = (baseRef: string | null) => {
-    if (!routeThreadRef) return;
-    useDiffPanelStore.getState().selectBranchBaseRef(routeThreadRef, baseRef);
+    if (!selectionRef) return;
+    useDiffPanelStore.getState().selectBranchBaseRef(selectionRef, baseRef);
   };
 
   const headerRow = (
@@ -1097,9 +1119,9 @@ export default function DiffPanel({
 
   return (
     <DiffPanelShell mode={mode} header={headerRow}>
-      {!activeThread ? (
+      {targetEnvironmentId === undefined || activeCwd == null ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">
-          Select a thread to inspect turn diffs.
+          Select a thread or Worktree to inspect changes.
         </div>
       ) : !isGitRepo ? (
         <div className="flex flex-1 items-center justify-center px-5 text-center text-xs text-muted-foreground/70">

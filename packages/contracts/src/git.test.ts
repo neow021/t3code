@@ -5,6 +5,7 @@ import * as Schema from "effect/Schema";
 
 import {
   VcsCreateWorktreeInput,
+  VcsListCommitGraphResult,
   VcsListWorktreesResult,
   GitPreparePullRequestThreadInput,
   GitRunStackedActionResult,
@@ -20,6 +21,7 @@ const decodeRunStackedActionInput = Schema.decodeUnknownSync(GitRunStackedAction
 const decodeRunStackedActionResult = Schema.decodeUnknownSync(GitRunStackedActionResult);
 const decodeResolvePullRequestResult = Schema.decodeUnknownSync(GitResolvePullRequestResult);
 const decodeListWorktreesResult = Schema.decodeUnknownSync(VcsListWorktreesResult);
+const decodeListCommitGraphResult = Schema.decodeUnknownSync(VcsListCommitGraphResult);
 
 describe("VcsListWorktreesResult", () => {
   it("decodes complete physical worktree state and freshness", () => {
@@ -50,6 +52,38 @@ describe("VcsListWorktreesResult", () => {
     expect(parsed.worktrees[0]?.detached).toBe(true);
     expect(parsed.worktrees[0]?.lockedReason).toBe("maintenance");
     expect(parsed.freshness.source).toBe("live-local");
+  });
+});
+
+describe("VcsListCommitGraphResult", () => {
+  it("round-trips paged topology and optional ref decorations", () => {
+    const parsed = decodeListCommitGraphResult({
+      isRepo: true,
+      repositoryRoot: "/repo",
+      headSha: "aaaaaaaa",
+      commits: [
+        {
+          sha: "aaaaaaaa",
+          shortSha: "aaaaaaa",
+          parents: ["bbbbbbbb"],
+          subject: "feat: graph",
+          authorName: "Neo",
+          authorEmail: "neo@example.com",
+          committedAt: "2026-08-06T12:00:00-07:00",
+          refs: [{ name: "main", kind: "branch", current: true }],
+        },
+      ],
+      nextCursor: 1,
+      freshness: {
+        source: "live-local",
+        observedAt: DateTime.makeUnsafe("2026-08-06T19:00:00.000Z"),
+        expiresAt: Option.none(),
+      },
+    });
+
+    expect(parsed.commits[0]?.parents).toEqual(["bbbbbbbb"]);
+    expect(parsed.commits[0]?.refs[0]?.current).toBe(true);
+    expect(parsed.nextCursor).toBe(1);
   });
 });
 

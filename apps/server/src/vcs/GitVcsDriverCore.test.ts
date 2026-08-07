@@ -185,6 +185,39 @@ it.effect("invalidates origin remote cache when a driver mutation adds origin", 
   }).pipe(Effect.provide(TestLayer)),
 );
 
+it.effect("lists paged commit topology and decorated refs from a real repository", () =>
+  Effect.gen(function* () {
+    const driver = yield* GitVcsDriver.GitVcsDriver;
+    const cwd = yield* makeTmpDir();
+    const { initialBranch } = yield* initRepoWithCommit(cwd);
+    yield* writeTextFile(cwd, "second.txt", "second\n");
+    yield* git(cwd, ["add", "."]);
+    yield* git(cwd, ["commit", "-m", "second commit"]);
+    yield* git(cwd, ["tag", "v1.0.0"]);
+
+    const firstPage = yield* driver.listCommitGraph({ cwd, limit: 1 });
+    assert.equal(firstPage.isRepo, true);
+    assert.equal(firstPage.repositoryRoot, cwd);
+    assert.equal(firstPage.commits[0]?.subject, "second commit");
+    assert.equal(firstPage.nextCursor, 1);
+    assert.equal(firstPage.headSha, firstPage.commits[0]?.sha);
+    assert.equal(
+      firstPage.commits[0]?.refs.some(
+        (ref) => ref.kind === "branch" && ref.name === initialBranch && ref.current,
+      ),
+      true,
+    );
+    assert.equal(
+      firstPage.commits[0]?.refs.some((ref) => ref.kind === "tag" && ref.name === "v1.0.0"),
+      true,
+    );
+
+    const secondPage = yield* driver.listCommitGraph({ cwd, cursor: 1, limit: 1 });
+    assert.equal(secondPage.commits[0]?.subject, "initial commit");
+    assert.equal(secondPage.nextCursor, null);
+  }).pipe(Effect.provide(TestLayer)),
+);
+
 it.effect("re-reads origin remote status after cache TTL expiry and bypassed invalidation", () =>
   Effect.gen(function* () {
     const driver = yield* GitVcsDriver.GitVcsDriver;

@@ -103,6 +103,9 @@ describe("Workbench v2 persistence interface", () => {
           scope: { kind: "machine", environmentId: environmentA },
           title: "Wrong scope",
           terminalId: "terminal-b",
+          threadId: null,
+          cwd: "/repo",
+          worktreePath: null,
         },
         orphan: {
           id: "orphan",
@@ -110,6 +113,9 @@ describe("Workbench v2 persistence interface", () => {
           scope,
           title: "Orphan",
           terminalId: "terminal-orphan",
+          threadId: null,
+          cwd: "/repo",
+          worktreePath: "/repo",
         },
       },
     });

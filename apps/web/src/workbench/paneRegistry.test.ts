@@ -10,6 +10,9 @@ const terminal: PaneDescriptor = {
   scope: machineScope("env-a" as EnvironmentId),
   title: "Terminal",
   terminalId: "terminal-a",
+  threadId: null,
+  cwd: "/repo",
+  worktreePath: null,
 };
 
 describe("PaneRegistry", () => {

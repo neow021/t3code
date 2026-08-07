@@ -17,8 +17,7 @@ import { useEnvironmentQuery } from "../state/query";
 import { useWorkbenchBetaEnabled } from "../hooks/useSettings";
 import { environmentShell } from "../state/shell";
 import { createAgentPaneDescriptor, machineScope } from "../workbench/model";
-import { revealThreadRoute } from "../workbench/routeAdapter";
-import { workbenchNavigation } from "../workbench/store";
+import { useLegacyCompositionMigration } from "../workbench/useLegacyCompositionMigration";
 
 function ChatThreadRouteView() {
   const navigate = useNavigate();
@@ -61,6 +60,14 @@ function ChatThreadRouteView() {
   });
   const serverThreadStarted = threadHasStarted(serverThreadDetail);
   const environmentHasAnyThreads = environmentHasServerThreads || environmentHasDraftThreads;
+  useLegacyCompositionMigration({
+    enabled: workbenchEnabled && renderState !== "missing",
+    environmentId: threadRef?.environmentId ?? null,
+    target: threadRef ? { kind: "thread", threadId: threadRef.threadId } : null,
+    title: serverThreadShell?.title ?? "Agent",
+    threadRef,
+    projectId: serverThreadDetail?.projectId ?? draftThread?.projectId ?? null,
+  });
 
   useEffect(() => {
     if (!threadRef || !bootstrapComplete) {
@@ -78,15 +85,6 @@ function ChatThreadRouteView() {
     }
     finalizePromotedDraftThreadByRef(threadRef);
   }, [draftThread, serverThreadStarted, threadRef]);
-
-  useEffect(() => {
-    if (!workbenchEnabled || !threadRef || renderState === "missing") return;
-    revealThreadRoute(workbenchNavigation, {
-      environmentId: threadRef.environmentId,
-      threadId: threadRef.threadId,
-      title: serverThreadShell?.title ?? "Agent",
-    });
-  }, [renderState, serverThreadShell?.title, threadRef, workbenchEnabled]);
 
   if (!threadRef) {
     return null;

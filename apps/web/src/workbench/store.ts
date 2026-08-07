@@ -28,6 +28,7 @@ function durableState(state: WorkbenchState): WorkbenchState {
     windowsByScope: state.windowsByScope,
     activeWindowByScope: state.activeWindowByScope,
     panes: state.panes,
+    legacyImportMarkers: state.legacyImportMarkers,
   };
 }
 

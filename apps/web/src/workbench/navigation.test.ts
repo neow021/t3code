@@ -1,4 +1,4 @@
-import type { EnvironmentId, ThreadId } from "@t3tools/contracts";
+import type { EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import {
@@ -149,5 +149,81 @@ describe("Workbench navigation", () => {
       "/env-a/thread-a",
     );
     expect(test.commands.some((command) => command.kind === "activate-pane")).toBe(false);
+  });
+
+  it("reuses Files by execution root and Diff by resource target", () => {
+    const test = harness();
+    const files = test.navigation.revealFiles({
+      scope: WORKTREE_SCOPE,
+      projectId: "project-a" as ProjectId,
+      rootPath: "/repo/packages/web",
+    });
+    const sameFiles = test.navigation.revealFiles({
+      scope: WORKTREE_SCOPE,
+      projectId: "project-a" as ProjectId,
+      rootPath: "/repo/packages/web",
+    });
+    const diff = test.navigation.revealDiff({
+      scope: WORKTREE_SCOPE,
+      target: { kind: "thread", threadId: THREAD },
+    });
+    const sameDiff = test.navigation.revealDiff({
+      scope: MACHINE_SCOPE,
+      target: { kind: "thread", threadId: THREAD },
+    });
+
+    expect(sameFiles).toBe(files);
+    expect(sameDiff).toBe(diff);
+    expect(Object.values(test.state().panes).filter(Boolean)).toHaveLength(2);
+    expect(test.state().activeScope).toEqual(WORKTREE_SCOPE);
+  });
+
+  it("reuses a Terminal Pane by Scope-compatible cwd", () => {
+    const test = harness();
+    const terminal = test.navigation.revealTerminal({
+      scope: WORKTREE_SCOPE,
+      cwd: "/repo",
+      worktreePath: "/repo",
+    });
+    const sameTerminal = test.navigation.revealTerminal({
+      scope: WORKTREE_SCOPE,
+      cwd: "/repo",
+      worktreePath: "/repo",
+    });
+
+    expect(sameTerminal).toBe(terminal);
+    expect(test.state().panes[terminal]).toMatchObject({
+      kind: "terminal",
+      cwd: "/repo",
+      worktreePath: "/repo",
+    });
+  });
+
+  it("reuses Browser and Git Graph Panes by their durable resource identity", () => {
+    const test = harness();
+    const browser = test.navigation.revealBrowser({
+      scope: WORKTREE_SCOPE,
+      previewId: "preview-a",
+      threadId: THREAD,
+    });
+    const sameBrowser = test.navigation.revealBrowser({
+      scope: WORKTREE_SCOPE,
+      previewId: "preview-a",
+      threadId: THREAD,
+    });
+    const graph = test.navigation.revealGitGraph({
+      scope: WORKTREE_SCOPE,
+      repositoryKey: REPOSITORY,
+      canonicalWorktreePath: "/repo",
+    });
+    const sameGraph = test.navigation.revealGitGraph({
+      scope: WORKTREE_SCOPE,
+      repositoryKey: REPOSITORY,
+      canonicalWorktreePath: "/repo",
+    });
+
+    expect(sameBrowser).toBe(browser);
+    expect(sameGraph).toBe(graph);
+    expect(Object.values(test.state().panes).filter(Boolean)).toHaveLength(2);
   });
 });

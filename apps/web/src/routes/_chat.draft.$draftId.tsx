@@ -13,8 +13,8 @@ import { buildThreadRouteParams } from "../threadRoutes";
 import { useThread, useThreadRefs } from "../state/entities";
 import { useWorkbenchBetaEnabled } from "../hooks/useSettings";
 import { createAgentPaneDescriptor, machineScope } from "../workbench/model";
-import { revealDraftRoute } from "../workbench/routeAdapter";
 import { workbenchNavigation } from "../workbench/store";
+import { useLegacyCompositionMigration } from "../workbench/useLegacyCompositionMigration";
 
 function DraftChatThreadRouteView() {
   const navigate = useNavigate();
@@ -34,6 +34,17 @@ function DraftChatThreadRouteView() {
   const serverThread = useThread(serverThreadRef);
   const serverThreadStarted = threadHasStarted(serverThread);
   const canonicalThreadRef = serverThreadStarted ? serverThreadRef : null;
+  const draftThreadRef = draftSession
+    ? { environmentId: draftSession.environmentId, threadId: draftSession.threadId }
+    : null;
+  useLegacyCompositionMigration({
+    enabled: workbenchEnabled && draftSession !== null,
+    environmentId: draftSession?.environmentId ?? null,
+    target: { kind: "draft", draftId },
+    title: "New thread",
+    threadRef: draftThreadRef,
+    projectId: draftSession?.projectId ?? null,
+  });
 
   useEffect(() => {
     if (!inferredThreadRef || draftSession?.promotedTo) {
@@ -72,14 +83,6 @@ function DraftChatThreadRouteView() {
       cancelled = true;
     };
   }, [canonicalThreadRef, draftId, draftSession, navigate, serverThread?.title]);
-
-  useEffect(() => {
-    if (!workbenchEnabled || !draftSession) return;
-    revealDraftRoute(workbenchNavigation, {
-      environmentId: draftSession.environmentId,
-      draftId,
-    });
-  }, [draftId, draftSession, workbenchEnabled]);
 
   useEffect(() => {
     if (draftSession || canonicalThreadRef) {

@@ -49,6 +49,9 @@ function terminalPane(
     scope,
     title: id,
     terminalId: `terminal-${id}`,
+    threadId: null,
+    cwd: scope.kind === "worktree" ? scope.canonicalWorktreePath : "/repo",
+    worktreePath: scope.kind === "worktree" ? scope.canonicalWorktreePath : null,
   };
 }
 
