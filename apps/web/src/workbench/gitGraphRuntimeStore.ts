@@ -28,22 +28,30 @@ const DEFAULT_PRESENTATION: GitGraphPresentation = {
   preferredWidth: null,
 };
 
+const normalizedPresentationByStoredValue = new WeakMap<
+  GitGraphPresentation,
+  GitGraphPresentation
+>();
+
 export function selectGitGraphPresentation(
   state: Pick<GitGraphRuntimeStore, "byRepository">,
   repositoryKey: RepositoryKey,
 ): GitGraphPresentation {
   const stored = state.byRepository[repositoryKey];
-  return stored === undefined
-    ? DEFAULT_PRESENTATION
-    : {
-        ...DEFAULT_PRESENTATION,
-        ...stored,
-        collapseThreshold: normalizeGitGraphCollapseThreshold(stored.collapseThreshold),
-        preferredWidth:
-          typeof stored.preferredWidth === "number" && Number.isFinite(stored.preferredWidth)
-            ? Math.min(720, Math.max(72, Math.round(stored.preferredWidth)))
-            : null,
-      };
+  if (stored === undefined) return DEFAULT_PRESENTATION;
+  const cached = normalizedPresentationByStoredValue.get(stored);
+  if (cached !== undefined) return cached;
+  const normalized = {
+    ...DEFAULT_PRESENTATION,
+    ...stored,
+    collapseThreshold: normalizeGitGraphCollapseThreshold(stored.collapseThreshold),
+    preferredWidth:
+      typeof stored.preferredWidth === "number" && Number.isFinite(stored.preferredWidth)
+        ? Math.min(720, Math.max(72, Math.round(stored.preferredWidth)))
+        : null,
+  };
+  normalizedPresentationByStoredValue.set(stored, normalized);
+  return normalized;
 }
 
 export const useGitGraphRuntimeStore = create<GitGraphRuntimeStore>()(

@@ -22,7 +22,7 @@ export function PaneFrame(props: {
       data-pane-kind={props.pane.kind}
       data-active={props.active || undefined}
     >
-      <header className="flex h-9 shrink-0 items-center gap-2 border-b bg-muted/20 px-3">
+      <header className="hidden h-9 shrink-0 items-center gap-2 border-b bg-muted/20 px-3 md:flex">
         <span className="min-w-0 flex-1 truncate text-xs font-medium">{props.pane.title}</span>
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
           {props.pane.kind}
@@ -37,7 +37,9 @@ export function PaneFrame(props: {
           <X className="size-3.5" />
         </button>
       </header>
-      <div className="min-h-0 flex-1 overflow-hidden">{props.children}</div>
+      <div data-pane-content="" className="flex min-h-0 flex-1 overflow-hidden">
+        {props.children}
+      </div>
     </section>
   );
 }
